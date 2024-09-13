@@ -14,6 +14,7 @@ import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.framework.OwnerPIN;
+import javacard.framework.Util;
 
 /**
  * Applet class
@@ -24,11 +25,15 @@ import javacard.framework.OwnerPIN;
 public class AppletCharon extends Applet {
     // Applet / Card info
     private static final byte role = (byte) 0xFF; // TODO : define real role.
-    private static final short version = (short) 0x0100;
-    private static final short targetId = (short) 0xDEAD; // TODO : define real targetId.
-    private static final int serialNumber = 0x12345678; // TODO : define real serial number.
+    private static final byte APPLET_MAJOR_VERSION = (byte) 0x00;
+    private static final byte APPLET_MINOR_VERSION = (byte) 0x01;
+    private static final byte APPLET_PATCH_VERSION = (byte) 0x00;
 
-    // Owner PIN
+    private static final byte[] targetId = { (byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF }; // TODO : Define real
+                                                                                                   // // target ID.
+    private byte[] serialNumber;
+    private static final byte SN_LENGTH = 4;
+
     private OwnerPIN pin;
     private static final byte PIN_TRY_LIMIT = 3;
     private static final byte PIN_MIN_SIZE = 4;
@@ -45,7 +50,7 @@ public class AppletCharon extends Applet {
 
     private SecureChannel secureChannel;
 
-    private static final byte LEDGER_COMMAND_CLA = (byte) 0xE4;
+    private static final byte LEDGER_COMMAND_CLA = (byte) 0x08;
 
     // Instruction codes
     private static final byte INS_GET_INFO = (byte) 0x01;
@@ -63,7 +68,7 @@ public class AppletCharon extends Applet {
     // Instruction classes
     private static final byte GP_CLA_INITIALIZE_UPDATE = (byte) 0x80;
     private static final byte GP_CLA_EXTERNAL_AUTHENTICATE = (byte) 0x84;
-    // Instruction codes
+    // Instruction codesUPDAT
     private static final byte GP_INS_INITIALIZE_UPDATE = (byte) 0x50;
     private static final byte GP_INS_EXTERNAL_AUTHENTICATE = (byte) 0x82;
 
@@ -97,9 +102,43 @@ public class AppletCharon extends Applet {
     }
 
     /**
+     * Get the serial number from the install data.
+     * 
+     * @param bArray  the install data
+     * @param bOffset the offset in the install data
+     */
+    private void getSerialNumberFromInstallData(byte[] bArray, short bOffset) {
+        short offset = bOffset;
+
+        // Skip AID length
+        offset += (short) (bArray[offset] + 1);
+
+        // Skip Info length
+        offset += (short) (bArray[offset] + 1);
+
+        byte snLen = bArray[offset];
+
+        // If there is applet data, read the serial number
+        if (snLen == SN_LENGTH) {
+            serialNumber = new byte[SN_LENGTH];
+            Util.arrayCopyNonAtomic(bArray, (short) (offset + 1), serialNumber, (short) 0, SN_LENGTH);
+        } else {
+            ISOException.throwIt(SW_INVALID_PARAMETER);
+        }
+    }
+
+    /**
      * Only this class's install method should create the applet object.
      */
     protected AppletCharon(byte[] bArray, short bOffset, byte bLength) {
+        // Create the FSM
+        appletFSM = new AppletStateMachine();
+        secureChannel = null;
+        pin = null;
+
+        // Get the serial number from the install data
+        getSerialNumberFromInstallData(bArray, bOffset);
+
         register(bArray, ((short) (bOffset + 1)), bArray[bOffset]);
     }
 
@@ -135,16 +174,64 @@ public class AppletCharon extends Applet {
      * Check that a secure channel is established and that the security level is
      * AUTHENTICATED.
      * 
-     * @return
+     * @return true if the security level is AUTHENTICATED, false otherwise
      */
     private boolean checkSecurityLevel() {
         // Check the security level
         short securityLevel = secureChannel.getSecurityLevel();
         if ((securityLevel & SecureChannel.AUTHENTICATED) != (short) SecureChannel.AUTHENTICATED) {
-            ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
             return false;
         }
         return true;
+    }
+
+    /**
+     * Get general information about the Applet and card itself as well as
+     * information about the status of current session.
+     * 
+     * cla: 0xE4
+     * 
+     * ins: 0x01
+     * 
+     * p1: 0x00
+     *
+     * p2: 0x00
+     * 
+     * lc: 0x00
+     * 
+     * data: none
+     * 
+     * return: [major version (1b) | minor version (1b) | patch version (1) | role
+     * (1b) | target id (4b) | IC serial number (4b) | FSM State (1b) | transient
+     * FSM State (1b)]
+     */
+    private short getInfo(byte[] buffer) {
+
+        short offset = 0;
+
+        // Set the version (3 bytes)
+        buffer[offset++] = APPLET_MAJOR_VERSION;
+        buffer[offset++] = APPLET_MINOR_VERSION;
+        buffer[offset++] = APPLET_PATCH_VERSION;
+
+        // Set the role
+        buffer[offset++] = role;
+
+        // Set target ID
+        Util.arrayCopyNonAtomic(targetId, (short) 0, buffer, offset, (short) targetId.length);
+        offset += targetId.length;
+
+        // Set the serial number
+        Util.arrayCopyNonAtomic(serialNumber, (short) 0, buffer, offset, (short) serialNumber.length);
+        offset += serialNumber.length;
+
+        // Set the applet FSM state
+        buffer[offset++] = appletFSM.getCurrentState();
+
+        // Set the transient FSM state
+        buffer[offset++] = ((TransientStateMachine) transientFSM[0]).getCurrentState();
+
+        return offset;
     }
 
     /**
@@ -180,18 +267,14 @@ public class AppletCharon extends Applet {
         }
 
         // Use GP API to unwrap data from secure channel.
-        try {
-            cdatalength = secureChannel.unwrap(buffer, (short) 0, (short) (ISO7816.OFFSET_CDATA + cdatalength));
-        } catch (ISOException isoe) {
-            // Throw security exception to be consistent with SE.
-            ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+        // TODO : doesn't work, need to investigate
+        if (cdatalength > 0) {
+            cdatalength = secureChannel.unwrap(buffer, (short) ISO7816.OFFSET_CDATA, (short) cdatalength);
         }
 
-        byte ins = buffer[ISO7816.OFFSET_INS];
-
-        switch (ins) {
+        switch (buffer[ISO7816.OFFSET_INS]) {
         case INS_GET_INFO:
-//            getInfo(buffer);
+            cdatalength = getInfo(buffer);
             break;
         case INS_GET_PUBLIC_KEY:
 //            getPublicKey(buffer);
@@ -220,9 +303,13 @@ public class AppletCharon extends Applet {
         case INS_RESTORE_BACKUP:
 //            restoreBackup(buffer);
             break;
-
         default:
             ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
         }
+
+        // Wrap buffer with secure channel
+        secureChannel.wrap(buffer, (short) 0, cdatalength);
+        // Send the response
+        apdu.setOutgoingAndSend((short) 0, cdatalength);
     }
 }

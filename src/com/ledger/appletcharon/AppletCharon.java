@@ -50,6 +50,7 @@ public class AppletCharon extends Applet {
 
     private SecureChannel secureChannel;
 
+    private static final byte APDU_HEADER_SIZE = 5;
     private static final byte LEDGER_COMMAND_CLA = (byte) 0x08;
 
     // Instruction codes
@@ -87,6 +88,7 @@ public class AppletCharon extends Applet {
         // Initialize state machines
         transientFSM = JCSystem.makeTransientObjectArray((short) 1, JCSystem.CLEAR_ON_DESELECT);
         transientFSM[0] = new TransientStateMachine();
+        secureChannel = null;
         return true;
     }
 
@@ -267,9 +269,8 @@ public class AppletCharon extends Applet {
         }
 
         // Use GP API to unwrap data from secure channel.
-        // TODO : doesn't work, need to investigate
         if (cdatalength > 0) {
-            cdatalength = secureChannel.unwrap(buffer, (short) ISO7816.OFFSET_CDATA, (short) cdatalength);
+            cdatalength = secureChannel.unwrap(buffer, (short) 0, (short) (cdatalength + APDU_HEADER_SIZE));
         }
 
         switch (buffer[ISO7816.OFFSET_INS]) {
@@ -307,8 +308,11 @@ public class AppletCharon extends Applet {
             ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
         }
 
+        buffer[(short) (cdatalength)] = (byte) 0x90;
+        buffer[(short) (cdatalength + 1)] = (byte) 0x00;
+        cdatalength += 2;
         // Wrap buffer with secure channel
-        secureChannel.wrap(buffer, (short) 0, cdatalength);
+        cdatalength = secureChannel.wrap(buffer, (short) 0, cdatalength);
         // Send the response
         apdu.setOutgoingAndSend((short) 0, cdatalength);
     }

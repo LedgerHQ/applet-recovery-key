@@ -24,13 +24,12 @@ import javacard.framework.Util;
 
 public class AppletCharon extends Applet {
     // Applet / Card info
-    private static final byte role = (byte) 0xFF; // TODO : define real role.
+    private static final byte CARD_CERT_ROLE = (byte) 0x0A;
     private static final byte APPLET_MAJOR_VERSION = (byte) 0x00;
     private static final byte APPLET_MINOR_VERSION = (byte) 0x01;
     private static final byte APPLET_PATCH_VERSION = (byte) 0x00;
 
-    private static final byte[] targetId = { (byte) 0xDE, (byte) 0xAD, (byte) 0xBE, (byte) 0xEF }; // TODO : Define real
-                                                                                                   // // target ID.
+    private static final byte CARD_TARGET_ID[] = { (byte) 0x33, (byte) 0x40, (byte) 0x00, (byte) 0x04 };
     private byte[] serialNumber;
     private static final byte SN_LENGTH = 4;
 
@@ -43,20 +42,24 @@ public class AppletCharon extends Applet {
 //    private ECPrivateKey certificatePrivateKey;
 //    private ECPublicKey certificatePublicKey;
 //    private byte[] certificate;
+    private byte[] issuerKey;
 
     // Session keys
 //    private KeyAgreement sharedSecret;
 //    private MessageDigest sessionKey;
 
     private SecureChannel secureChannel;
+    private CryptoUtil crypto;
+    private Certificate cardCertificate;
 
     private static final byte APDU_HEADER_SIZE = 5;
     private static final byte LEDGER_COMMAND_CLA = (byte) 0x08;
 
     // Instruction codes
     private static final byte INS_GET_INFO = (byte) 0x01;
-    private static final byte INS_GET_PUBLIC_KEY = (byte) 0x02;
-    private static final byte INS_SET_CERTIFICATE = (byte) 0x03;
+    private static final byte INS_SET_ISSUER_KEY = (byte) 0x02;
+    private static final byte INS_GET_PUBLIC_KEY = (byte) 0x40;
+    private static final byte INS_SET_CERTIFICATE = (byte) 0x41;
     private static final byte INS_GET_CARD_CERTIFICATE = (byte) 0x04;
     private static final byte INS_VALIDATE_HOST_CERTIFICATE = (byte) 0x05;
     private static final byte INS_CREATE_PIN = (byte) 0x06;
@@ -74,11 +77,14 @@ public class AppletCharon extends Applet {
     private static final byte GP_INS_EXTERNAL_AUTHENTICATE = (byte) 0x82;
 
     // Invalid input parameter to command
-    private final static short SW_INVALID_PARAMETER = (short) 0x9C0F;
+    private static final short SW_INVALID_PARAMETER = (short) 0x9C0F;
 
     // State machines
     private AppletStateMachine appletFSM;
     private Object[] transientFSM;
+    
+    // RAM buffer
+    private byte ramBuffer[];
 
     /**
      * Selects the applet. Initializes the transient state machine (in locked
@@ -137,6 +143,13 @@ public class AppletCharon extends Applet {
         appletFSM = new AppletStateMachine();
         secureChannel = null;
         pin = null;
+        crypto = new CryptoUtil();
+        cardCertificate = new Certificate(CARD_CERT_ROLE);
+        
+        // Dedicate some RAM
+        if (ramBuffer == null) {
+            ramBuffer = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
+        }
 
         // Get the serial number from the install data
         getSerialNumberFromInstallData(bArray, bOffset);
@@ -217,11 +230,11 @@ public class AppletCharon extends Applet {
         buffer[offset++] = APPLET_PATCH_VERSION;
 
         // Set the role
-        buffer[offset++] = role;
+        buffer[offset++] = CARD_CERT_ROLE;
 
         // Set target ID
-        Util.arrayCopyNonAtomic(targetId, (short) 0, buffer, offset, (short) targetId.length);
-        offset += targetId.length;
+        Util.arrayCopyNonAtomic(CARD_TARGET_ID, (short) 0, buffer, offset, (short) CARD_TARGET_ID.length);
+        offset += CARD_TARGET_ID.length;
 
         // Set the serial number
         Util.arrayCopyNonAtomic(serialNumber, (short) 0, buffer, offset, (short) serialNumber.length);
@@ -234,6 +247,66 @@ public class AppletCharon extends Applet {
         buffer[offset++] = ((TransientStateMachine) transientFSM[0]).getCurrentState();
 
         return offset;
+    }
+    
+    private void setIssuerKey(byte[] buffer) {
+        if (issuerKey == null) {
+            issuerKey = JCSystem.makeTransientByteArray((short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN, JCSystem.CLEAR_ON_DESELECT);
+        }
+        Util.arrayCopy(buffer,  (short) ISO7816.OFFSET_CDATA, issuerKey, (short) 0, (short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN);
+    }
+
+    private short getPublicKey(byte[] buffer) {
+        crypto.initCurve((byte) CryptoUtil.SECP256K1);
+        // Use ramBuffer for temporary data
+        crypto.generateKeyPair(ramBuffer, (short) 0);
+        if (issuerKey == null) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        crypto.setSigningKey(issuerKey, (short) 0, (short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN);
+
+        // dataToSign = role || target ID || public key
+        ramBuffer[0] = CARD_CERT_ROLE;
+        Util.arrayCopy(CARD_TARGET_ID, (short) (0), ramBuffer, (short) 1, (short) CARD_TARGET_ID.length);
+        short outLength = (short) (1 + CARD_TARGET_ID.length);
+        short publicKeyLength = crypto.getPublicKey(ramBuffer, (short) 5);
+        outLength += publicKeyLength;
+
+        // buffer = public_key_len || public key || serial_number_len || serial number
+        buffer[0] = (byte) publicKeyLength;
+        Util.arrayCopy(ramBuffer, (short) (5), buffer, (short) 1, publicKeyLength);
+        buffer[(short) (publicKeyLength + 1)] = (byte) SN_LENGTH;
+        Util.arrayCopy(serialNumber, (short) 0, buffer, (short) (publicKeyLength + 2), (short) SN_LENGTH);
+        // Compute signature
+        short signatureLength = crypto.computeSignature(ramBuffer, (short) 0, outLength, buffer, (short)(publicKeyLength + 1 + SN_LENGTH + 2));
+        outLength = (short) (publicKeyLength + 1 + SN_LENGTH + 1);
+        buffer[outLength] = (byte) signatureLength;
+
+        // buffer = public_key_len || public key || serial_number_len || serial number || signature len || signature
+        outLength += (short) (signatureLength + 1);
+        return outLength;
+    }
+
+    private boolean setCertificate(byte[] buffer) {
+        cardCertificate.setBatchSerial(buffer, ISO7816.OFFSET_CDATA);
+        short offset = ISO7816.OFFSET_CDATA + Certificate.BATCH_SERIAL_LEN;
+        // buffer[offset] = public key length
+        cardCertificate.setPublicKey(buffer, (short) (offset + 1), buffer[offset]);
+        offset += 1 + buffer[offset];
+        // buffer[offset] = serial number length
+        // Check serial number
+        Util.arrayCompare(buffer, (short) (offset + 1), serialNumber, (short) 0, buffer[offset]);
+        offset += 1 + buffer[offset];
+        // buffer[offset] = signature length
+        cardCertificate.setSignature(buffer, (short) (offset + 1), buffer[offset]);
+        offset += 1 + buffer[offset];
+        // buffer[offset] = mcu serial length
+        cardCertificate.setMcuSerial(buffer, (short) (offset + 1), buffer[offset]);
+
+        // Verify signature
+        // The curve is the same as in getPublicKey
+        cardCertificate.setCurve(crypto.getCurve());
+        return cardCertificate.verifySignature(serialNumber, SN_LENGTH);
     }
 
     /**
@@ -252,7 +325,7 @@ public class AppletCharon extends Applet {
         byte[] buffer = apdu.getBuffer();
         short cdatalength = apdu.setIncomingAndReceive();
 
-        if ((short) buffer[ISO7816.OFFSET_LC] != cdatalength) {
+        if ((short) (buffer[ISO7816.OFFSET_LC] & 0x00FF) != cdatalength) {
             ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
         }
 
@@ -282,11 +355,20 @@ public class AppletCharon extends Applet {
         case INS_GET_INFO:
             cdatalength = getInfo(buffer);
             break;
+        case INS_SET_ISSUER_KEY:
+            setIssuerKey(buffer);
+            cdatalength = 0;
+            break;
         case INS_GET_PUBLIC_KEY:
-//            getPublicKey(buffer);
+            cdatalength = getPublicKey(buffer);
             break;
         case INS_SET_CERTIFICATE:
-//            verifyPIN(buffer);
+            if (true == setCertificate(buffer)) {
+                cdatalength = 0;
+            }
+            else {
+                ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+            }
             break;
         case INS_GET_CARD_CERTIFICATE:
 //            getCardCertificate(buffer);

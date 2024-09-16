@@ -268,6 +268,11 @@ public class AppletCharon extends Applet {
             ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
         }
 
+        // Check if the APDU is a Ledger command
+        if (buffer[ISO7816.OFFSET_CLA] != LEDGER_COMMAND_CLA) {
+            ISOException.throwIt(ISO7816.SW_CLA_NOT_SUPPORTED);
+        }
+
         // Use GP API to unwrap data from secure channel.
         if (cdatalength > 0) {
             cdatalength = secureChannel.unwrap(buffer, (short) 0, (short) (cdatalength + APDU_HEADER_SIZE));
@@ -308,6 +313,7 @@ public class AppletCharon extends Applet {
             ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
         }
 
+        // Add status word before wrapping response buffer
         buffer[(short) (cdatalength)] = (byte) 0x90;
         buffer[(short) (cdatalength + 1)] = (byte) 0x00;
         cdatalength += 2;

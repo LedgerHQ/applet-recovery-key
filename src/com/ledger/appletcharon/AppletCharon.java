@@ -86,6 +86,8 @@ public class AppletCharon extends Applet {
     // RAM buffer
     private byte ramBuffer[];
 
+    private static final short SECURITY_LEVEL_MASK = 0x7F;
+
     /**
      * Selects the applet. Initializes the transient state machine (in locked
      * state).
@@ -187,14 +189,18 @@ public class AppletCharon extends Applet {
 
     /**
      * Check that a secure channel is established and that the security level is
-     * AUTHENTICATED.
+     * R_DECRYPTION | C_ENCRYPTION | R_MAC | C_MAC = 0x33
      * 
-     * @return true if the security level is AUTHENTICATED, false otherwise
+     * @return true if the security level is as expected, false otherwise
      */
     private boolean checkSecurityLevel() {
         // Check the security level
         short securityLevel = secureChannel.getSecurityLevel();
         if ((securityLevel & SecureChannel.AUTHENTICATED) != (short) SecureChannel.AUTHENTICATED) {
+            return false;
+        }
+        if ((securityLevel & SECURITY_LEVEL_MASK)
+            != (short) (SecureChannel.C_DECRYPTION | SecureChannel.C_MAC | SecureChannel.R_ENCRYPTION | SecureChannel.R_MAC)) {
             return false;
         }
         return true;
@@ -351,6 +357,9 @@ public class AppletCharon extends Applet {
             cdatalength = secureChannel.unwrap(buffer, (short) 0, (short) (cdatalength + APDU_HEADER_SIZE));
         }
 
+        // Get current persistent state
+        ramBuffer[0] = appletFSM.getCurrentState();
+
         switch (buffer[ISO7816.OFFSET_INS]) {
         case INS_GET_INFO:
             cdatalength = getInfo(buffer);
@@ -360,15 +369,22 @@ public class AppletCharon extends Applet {
             cdatalength = 0;
             break;
         case INS_GET_PUBLIC_KEY:
+            if (ramBuffer[0] != AppletStateMachine.STATE_FABRICATION) {
+                ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+            }
             cdatalength = getPublicKey(buffer);
             break;
         case INS_SET_CERTIFICATE:
+            if (ramBuffer[0] != AppletStateMachine.STATE_FABRICATION) {
+                ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+            }
             if (true == setCertificate(buffer)) {
                 cdatalength = 0;
             }
             else {
                 ISOException.throwIt(ISO7816.SW_DATA_INVALID);
             }
+            appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
             break;
         case INS_GET_CARD_CERTIFICATE:
 //            getCardCertificate(buffer);

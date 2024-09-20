@@ -257,7 +257,27 @@ public class AppletCharon extends Applet {
 
         return offset;
     }
-    
+
+    /**
+     * Set the Issuer private key. This key is used only during the card
+     * personalization to sign the card public key.
+     * This command is only for testing and will be removed.
+     *
+     * cla: 0x08
+     *
+     * ins: 0x02
+     *
+     * p1: 0x00
+     *
+     * p2: 0x00
+     *
+     * lc: 0x20
+     *
+     * data:
+     * - issuer private key (32b)
+     *
+     * return: none
+     */
     private void setIssuerKey(byte[] buffer) {
         if (issuerKey == null) {
             issuerKey = JCSystem.makeTransientByteArray((short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN, JCSystem.CLEAR_ON_DESELECT);
@@ -265,6 +285,30 @@ public class AppletCharon extends Applet {
         Util.arrayCopy(buffer,  (short) ISO7816.OFFSET_CDATA, issuerKey, (short) 0, (short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN);
     }
 
+
+    /**
+     * Get the card public key signed by a known Issuer private key.
+     *
+     * cla: 0x08
+     *
+     * ins: 0x40
+     *
+     * p1: 0x00
+     *
+     * p2: 0x00
+     *
+     * lc: 0x00
+     *
+     * data: none
+     *
+     * return:
+     * - card public key length (1b)
+     * - card public key
+     * - card serial number length (1b)
+     * - card serial number
+     * - issuer signature length (1b)
+     * - issuer signature
+     */
     private short getPublicKey(byte[] buffer) {
         crypto.initCurve((byte) CryptoUtil.SECP256K1);
         certificatePrivateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, crypto.getCurve().getCurveLength(), false);
@@ -298,6 +342,30 @@ public class AppletCharon extends Applet {
         return outLength;
     }
 
+     /**
+     * Set the card certificate issued by Ledger.
+     *
+     * cla: 0x08
+     *
+     * ins: 0x41
+     *
+     * p1: 0x00
+     *
+     * p2: 0x00
+     *
+     * lc: data_len
+     *
+     * data:
+     * - batch serial number (4b)
+     * - card public key length (1b)
+     * - card public key
+     * - card serial number length (1b)
+     * - card serial number
+     * - issuer signature length (1b)
+     * - issuer signature
+     *
+     * return: none
+     */
     private short setCertificate(byte[] buffer) {
         cardCertificate.setBatchSerial(buffer, ISO7816.OFFSET_CDATA);
         short offset = ISO7816.OFFSET_CDATA + Certificate.BATCH_SERIAL_LEN;

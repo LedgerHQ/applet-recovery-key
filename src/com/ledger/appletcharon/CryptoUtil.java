@@ -17,8 +17,6 @@ import javacard.security.Signature;
 
 public class CryptoUtil {
     private Curve curve;
-    private ECPrivateKey privateKey;
-    private ECPublicKey publicKey;
     private ECPrivateKey signingKey;
 
     // static fields
@@ -40,24 +38,18 @@ public class CryptoUtil {
         return this.curve;
     }
 
-    protected void generateKeyPair(byte[] buffer, short offset) {
+    protected void generateKeyPair(byte[] buffer, short offset, ECPrivateKey privateKey, ECPublicKey publicKey) {
         try {
-            privateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, curve.getCurveLength(), false);
             curve.setCurveParameters(privateKey);
             RandomData randomData = RandomData.getInstance(RandomData.ALG_KEYGENERATION);
             randomData.nextBytes(buffer, offset, (short) (curve.getCurveLength()/8));
             privateKey.setS(buffer, offset, (short) (curve.getCurveLength()/8));
-            publicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, curve.getCurveLength(), false);
             curve.setCurveParameters(publicKey);
             curve.multiplyGenerator(privateKey, publicKey);
         } catch(Exception e) {
             Util.arrayFill(buffer, offset, (short) (curve.getCurveLength()/8), (byte) 0);
             ISOException.throwIt(ISO7816.SW_UNKNOWN);
         } 
-    }
-
-    protected short getPublicKey(byte[] publicKeyBuffer, short offset) {
-        return publicKey.getW(publicKeyBuffer, offset);
     }
 
     protected void setSigningKey(byte[] privateKeyBuffer, short offset, short length) {

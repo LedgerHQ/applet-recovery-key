@@ -18,8 +18,6 @@ public class Certificate {
     private short publicKeyLength;
     private byte[] signature = null;
     private short signatureLength;
-    private byte[] mcuSerial = null;
-    private short mcuSerialLength;
 
     protected static final short BATCH_SERIAL_LEN = 4;
     private static final byte ISSUER_PUBLIC_KEY[] = {
@@ -58,12 +56,6 @@ public class Certificate {
         Util.arrayCopy(signature, offset, this.signature, (short) 0, signatureLength); 	
     }
 
-    protected void setMcuSerial(byte[] mcuSerial, short offset, short mcuSerialLength) {
-        this.mcuSerialLength = mcuSerialLength;
-        this.mcuSerial = new byte[mcuSerialLength];
-        Util.arrayCopy(mcuSerial, offset, this.mcuSerial, (short) 0, mcuSerialLength);
-    }
-
     protected void setBatchSerial(byte[] batchSerial, short offset) {
         this.batchSerial = new byte[BATCH_SERIAL_LEN];
         Util.arrayCopy(batchSerial, offset, this.batchSerial, (short) 0, BATCH_SERIAL_LEN);
@@ -83,10 +75,6 @@ public class Certificate {
         Util.arrayCopy(outSerial, (short) 0, batchSerial, (short) 0, (short) 4);
     }
 
-    protected void getMcuSerial(byte[] outMcuSerial) {
-        Util.arrayCopy(outMcuSerial, (short) 0, mcuSerial, (short) 0, mcuSerialLength);
-    }
-
     protected void setCurve(Curve curve) {
         this.curve = curve;
     }
@@ -97,10 +85,8 @@ public class Certificate {
         Util.arrayFill(batchSerial, (short) 0, (short) BATCH_SERIAL_LEN, (byte) 0);
         Util.arrayFill(publicKey, (short) 0, publicKeyLength, (byte) 0);
         Util.arrayFill(signature, (short) 0, signatureLength, (byte) 0);
-        Util.arrayFill(mcuSerial, (short) 0, mcuSerialLength, (byte) 0);
         publicKeyLength = 0;
         signatureLength = 0;
-        mcuSerialLength = 0;
     }
 
     protected boolean verifySignature(byte[] serialNumber, short serialNumberLength) {

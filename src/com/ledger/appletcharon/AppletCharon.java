@@ -380,9 +380,6 @@ public class AppletCharon extends Applet {
         offset += 1 + buffer[offset];
         // buffer[offset] = signature length
         cardCertificate.setSignature(buffer, (short) (offset + 1), buffer[offset]);
-        offset += 1 + buffer[offset];
-        // buffer[offset] = mcu serial length
-        cardCertificate.setMcuSerial(buffer, (short) (offset + 1), buffer[offset]);
 
         // Verify signature
         // The curve is the same as in getPublicKey

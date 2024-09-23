@@ -357,8 +357,8 @@ public class AppletCharon extends Applet {
      *
      * data:
      * - batch serial number (4b)
-     * - card public key length (1b)
-     * - card public key
+     * - issuer public key length (1b)
+     * - issuer public key
      * - card serial number length (1b)
      * - card serial number
      * - issuer signature length (1b)
@@ -369,7 +369,7 @@ public class AppletCharon extends Applet {
     private short setCertificate(byte[] buffer) {
         cardCertificate.setBatchSerial(buffer, ISO7816.OFFSET_CDATA);
         short offset = ISO7816.OFFSET_CDATA + Certificate.BATCH_SERIAL_LEN;
-        // buffer[offset] = public key length
+        // buffer[offset] = issuer public key length
         cardCertificate.setPublicKey(buffer, (short) (offset + 1), buffer[offset]);
         offset += 1 + buffer[offset];
         // buffer[offset] = serial number length
@@ -384,7 +384,10 @@ public class AppletCharon extends Applet {
         // Verify signature
         // The curve is the same as in getPublicKey
         cardCertificate.setCurve(crypto.getCurve());
-        if (cardCertificate.verifySignature(serialNumber, SN_LENGTH) != true) {
+        ramBuffer[0] = SN_LENGTH;
+        Util.arrayCopy(serialNumber, (short) 0, ramBuffer, (short) 1, SN_LENGTH);
+        ramBuffer[0] += (byte) certificatePublicKey.getW(ramBuffer, (short) (SN_LENGTH + 1));
+        if (cardCertificate.verifySignature(ramBuffer, (short) 1, (short) ramBuffer[0]) != true) {
             ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         }
 

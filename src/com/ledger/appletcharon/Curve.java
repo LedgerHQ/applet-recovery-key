@@ -83,4 +83,14 @@ public class Curve {
         keyGen.generateSecret(ramBuffer, (short) 0, length, ramBuffer, pointLength);
         outPoint.setW(ramBuffer, pointLength, length);
     }
+
+    protected void eraseCurve() {
+        this.curveLength = 0;
+        this.K = 0;
+        Util.arrayFill(FP, (short) 0, (short)FP.length, (byte) 0);
+        Util.arrayFill(A, (short) 0, (short)A.length, (byte) 0);
+        Util.arrayFill(B, (short) 0, (short)B.length, (byte) 0);
+        Util.arrayFill(G, (short) 0, (short)G.length, (byte) 0);
+        Util.arrayFill(R, (short) 0, (short)R.length, (byte) 0);
+    }
 }

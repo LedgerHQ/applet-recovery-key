@@ -16,13 +16,21 @@ import javacard.security.RandomData;
 import javacard.security.Signature;
 
 public class CryptoUtil {
+    // Curve associated with the key pair
     private Curve curve;
+    // Private key used for signature
     private ECPrivateKey signingKey;
 
-    // static fields
+    /* Constants */
+    // SECP256K1 identifier
     protected static final byte SECP256K1 = (byte) 0x21;
+    // Private key length over SECP256K1
     protected static final byte SECP256K1_PRIVATE_KEY_LEN = (byte) 32;
 
+    /**
+     * Initializes a curve for key generation, signature and, verification
+     * @param[in] curveId Curve identifier
+     */
     protected void initCurve(byte curveId) {
         switch (curveId) {
             case SECP256K1:
@@ -34,10 +42,21 @@ public class CryptoUtil {
         }
     }
 
+    /**
+     * Gets the current curve.
+     * @return Curve object
+     */
     protected Curve getCurve() {
         return this.curve;
     }
 
+    /**
+     * Generates an elliptic curve key pair over the initialized curve.
+     * @param[in] buffer Buffer for temporary storage
+     * @param[in] offset Buffer offset
+     * @param[out] privateKey PrivateKey object. It must be instanciated.
+     * @param[out] publicKey  PublicKey object. It must be instanciated.
+     */
     protected void generateKeyPair(byte[] buffer, short offset, ECPrivateKey privateKey, ECPublicKey publicKey) {
         try {
             curve.setCurveParameters(privateKey);
@@ -52,12 +71,27 @@ public class CryptoUtil {
         } 
     }
 
+    /**
+     * Instanciates a signing key in a transient key object.
+     * @param[in] privateKeyBuffer Private key buffer
+     * @param[in] offset           Offset of the private key value
+     * @param[in] length           Private key length
+     */
     protected void setSigningKey(byte[] privateKeyBuffer, short offset, short length) {
         signingKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE_TRANSIENT_DESELECT, curve.getCurveLength(), false);
         curve.setCurveParameters(signingKey);
         signingKey.setS(privateKeyBuffer, offset, length);
     }
 
+    /**
+     * Computes a signature using an initialized signing key.
+     * @param[in] dataBuffer Data buffer
+     * @param[in] offset     Offset of the data
+     * @param[in] dataLength Data length
+     * @param[out] signatureBuffer Signature buffer
+     * @param[in] signatureOffset Offset of the signature
+     * @return Signature length
+     */
     protected short computeSignature(byte[] dataBuffer, short offset, short dataLength, byte[] signatureBuffer, short signatureOffset) {
         Signature signature = Signature.getInstance(Signature.ALG_ECDSA_SHA_256, false);
         signature.init(signingKey, Signature.MODE_SIGN);

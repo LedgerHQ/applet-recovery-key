@@ -5,6 +5,8 @@
 
 
 package com.ledger.appletcharon;
+import javacard.framework.ISO7816;
+import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
 import javacard.security.ECKey;
@@ -13,17 +15,29 @@ import javacard.security.ECPublicKey;
 import javacard.security.KeyAgreement;
 
 public class Curve {
+    // KeyAgreement object for ECDH
     private static KeyAgreement keyGen;
+    // Curve length
     private short curveLength;
+    // Curve base field
     private byte[] FP = null;
+    // Curve 'a' parameter in the Weierstrass equation
     private byte[] A = null;
+    // Curve 'b' parameter in the Weierstrass equation
     private byte[] B = null;
+    // Curve generator
     private byte[] G = null;
+    // Curve order
     private byte[] R = null;
+    // Curve cofactor
     private byte K;
+
+    /* Constants */
     // SECP384R1 point length including the prefix
     // Assuming that SECP384R1 is the biggest curve that will be used
     private static final short CURVE_MAX_POINT_LEN = 97;
+
+    /* RAM */
     private byte ramBuffer[] = null;
 
     public Curve(short curveLength, byte[] FP, byte[] A, byte[] B, byte[] G, byte[] R, byte K) {
@@ -42,13 +56,21 @@ public class Curve {
         if (ramBuffer == null) {
             ramBuffer = JCSystem.makeTransientByteArray((short) (CURVE_MAX_POINT_LEN * 2), JCSystem.CLEAR_ON_DESELECT);
         }
-}
+    }
 
+    /**
+     * Gets the curve parameters length.
+     * @return curveLength Curve parameters length
+     */
     protected short getCurveLength() {
         return curveLength;
     }
 
-    protected boolean setCurveParameters(ECKey key) {
+    /**
+     * Sets the key curve parameters.
+     * @param[in] key Elliptic curve private or public key
+     */
+    protected void setCurveParameters(ECKey key) {
         try {
             key.setA(A, (short) 0, (short) A.length);
             key.setB(B, (short) 0, (short) B.length);
@@ -56,12 +78,16 @@ public class Curve {
             key.setG(G, (short) 0, (short) G.length);
             key.setR(R, (short) 0, (short) R.length);
             key.setK(K);
-            return true;
         } catch (Exception e) {
-            return false;
+        	ISOException.throwIt(ISO7816.SW_WRONG_DATA);
         }
     }
 
+    /**
+     * Performs the scalar multiplication {scalar * G} where G is the curve generator.
+     * @param[in] scalar  Curve scalar
+     * @param[out] result Curve point result
+     */
     protected void multiplyGenerator(ECPrivateKey scalar, ECPublicKey result) {
         // TODO: check that keys are initialized
         keyGen = KeyAgreement.getInstance(KeyAgreement.ALG_EC_SVDP_DH_PLAIN_XY, false);
@@ -73,6 +99,12 @@ public class Curve {
         result.setW(ramBuffer, pointLength, length);	
     }
 
+    /**
+     * Performs the scalar multiplication {scalar * inPoint}.
+     * @param[in] scalar    Curve Scalar
+     * @param[in] inPoint   Curve point
+     * @param[out] outPoint Curve point result
+     */
     protected void multiply(ECPrivateKey scalar, ECPublicKey inPoint, ECPublicKey outPoint) {
         // TODO: check that keys are initialized
         keyGen = KeyAgreement.getInstance(KeyAgreement.ALG_EC_SVDP_DH_PLAIN_XY, false);
@@ -84,6 +116,9 @@ public class Curve {
         outPoint.setW(ramBuffer, pointLength, length);
     }
 
+    /**
+     * Erases the Curve fields.
+     */
     protected void eraseCurve() {
         this.curveLength = 0;
         this.K = 0;

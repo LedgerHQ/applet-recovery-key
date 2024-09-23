@@ -11,18 +11,30 @@ import javacard.security.KeyBuilder;
 import javacard.security.Signature;
 
 public class Certificate {
+    // Certificate role
     private byte[] role;
+    // Curve associated to publicKey and issuerPublicKey
     private Curve curve;
+    // Serial number associated to issuerPublicKey
     private byte[] batchSerial = null;
+    // Card serial number
     private byte[] serialNumber = null;
+    // Card serial number length
     private short serialNumberLength;
+    // Card public key
     private byte[] publicKey = null;
+    // Card public key length
     private short publicKeyLength;
+    // Issuer public key
     private byte[] issuerPublicKey = null;
+    // Issuer public key length
     private short issuerPublicKeyLength;
+    // Issuer signature
     private byte[] signature = null;
+    // Issuer signature length
     private short signatureLength;
 
+    // Batch serial number length
     protected static final short BATCH_SERIAL_LEN = 4;
 
     public Certificate(byte role) {
@@ -30,45 +42,101 @@ public class Certificate {
         this.role[0] = role;
     }
 
+    /**
+     * Keeps the Card certificate public key into internal array.
+     * This is convenient for the certificate signature verification and
+     * for the getCertificate method.
+     * @param[in] publicKey       Public key buffer
+     * @param[in] offset          Offset of the public key value
+     * @param[in] publicKeyLength Public key length
+     */
     protected void setPublicKey(byte[] publicKey, short offset, short publicKeyLength) {
         this.publicKeyLength = publicKeyLength;
         this.publicKey = new byte[publicKeyLength];
         Util.arrayCopy(publicKey, offset, this.publicKey, (short) 0, publicKeyLength);
     }
 
+    /**
+     * Keeps the Issuer public key. This public key is used to verify the certificate
+     * signature.
+     * @param[in] publicKey       Public key buffer
+     * @param[in] offset          Offset of the public key value
+     * @param[in] publicKeyLength Public key length
+     */
     protected void setIssuerPublicKey(byte[] publicKey, short offset, short publicKeyLength) {
         this.issuerPublicKeyLength = publicKeyLength;
         this.issuerPublicKey = new byte[publicKeyLength];
         Util.arrayCopy(publicKey, offset, this.issuerPublicKey, (short) 0, publicKeyLength);
     }
 
+    /**
+     * Keeps the Issuer signature as certificate signature.
+     * The signature has been computed over {role || serialNumber || publicKey}
+     * @param[in] signature       Signature buffer
+     * @param[in] offset          Offset of the signature value
+     * @param[in] signatureLength Signature length
+     */
     protected void setSignature(byte[] signature, short offset, short signatureLength) {
         this.signatureLength = signatureLength;
         this.signature = new byte[signatureLength];
         Util.arrayCopy(signature, offset, this.signature, (short) 0, signatureLength); 	
     }
 
+    /**
+     * Keeps the batch serial number which identifies the Issuer public key.
+     * @param[in] batchSerial Batch serial number buffer
+     * @param[in] offset      Offset to the batch serial number value
+     */
     protected void setBatchSerial(byte[] batchSerial, short offset) {
         this.batchSerial = new byte[BATCH_SERIAL_LEN];
         Util.arrayCopy(batchSerial, offset, this.batchSerial, (short) 0, BATCH_SERIAL_LEN);
     }
 
+    /**
+     * Keeps the card serial number.
+     * This is convenient for the certificate signature verification and
+     * for the getCertificate method.
+     * @param[in] serialNumber Card serial number buffer
+     * @param[in] offset       Offset of the card serial number value
+     * @param[in] serialNumberLength Card serial number length
+     */
     protected void setSerialNumber(byte[] serialNumber, short offset, short serialNumberLength) {
         this.serialNumber = new byte[serialNumberLength];
         this.serialNumberLength = serialNumberLength;
         Util.arrayCopy(serialNumber, offset, this.serialNumber, (short) 0, serialNumberLength);
     }
 
+    /**
+     * Gets the Issuer public key. This Issuer public key will be used to verify
+     * the certificate received by the card.
+     * @param[out] outPublicKey      Buffer where to store the public key
+     * @param[in] offset             Offset of the public key value
+     * @return issuerPublicKeyLength Length of the Issuer public key
+     */
     protected short getIssuerPublicKey(byte[] outPublicKey, short offset) {
         Util.arrayCopy(issuerPublicKey, (short) 0, outPublicKey, offset, issuerPublicKeyLength);
         return issuerPublicKeyLength;
     }
 
+    /**
+     * Sets the curve on which the public keys have been defined.
+     * It is assumed that both Issuer public key and card public key
+     * correspond to this curve.
+     * @param curve
+     */
     protected void setCurve(Curve curve) {
         this.curve = curve;
     }
 
-    protected void getCertificate(byte[] outCertificate, short offset) {
+    /**
+     * Gets the card certificate.
+     * The certificate consists of
+     * {serialNumberLength || serialNumber || publicKeyLength || publicKey || signatureLength || signature}
+     * @param[out] outCertificate Certificate buffer
+     * @param[in] offset          Offset of the certificate
+     * @return Length of the certificate
+     */
+    protected short getCertificate(byte[] outCertificate, short offset) {
         short dataOffset = offset;
         outCertificate[dataOffset] = (byte) serialNumberLength;
         dataOffset += (short) 1;
@@ -81,8 +149,13 @@ public class Certificate {
         outCertificate[dataOffset] = (byte) signatureLength;
         dataOffset += (short) 1;
         Util.arrayCopy(signature, (short) 0, outCertificate, dataOffset, signatureLength);
+        dataOffset += signatureLength;
+        return (short) (dataOffset - offset);
     }
 
+    /**
+     * Erases the Certificate content.
+     */
     protected void eraseAll() {
         role[0] = (byte) 0;
         curve.eraseCurve();
@@ -96,6 +169,11 @@ public class Certificate {
         signatureLength = 0;
     }
 
+    /**
+     * Verifies the certificate signature.
+     * @return true  Signature is verified
+     *         false Signature is not verified
+     */
     protected boolean verifySignature() {
         ECPublicKey issuerPublicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, (short) curve.getCurveLength(), false);
         curve.setCurveParameters(issuerPublicKey);

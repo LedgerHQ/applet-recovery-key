@@ -1,7 +1,5 @@
 package com.ledger.appletcharon;
 
-import javacard.framework.JCSystem;
-
 // Class that manages the transient states of the applet,
 // The transient state machine is instantiated when a select
 // command is received and is cleared when the applet is deselected.
@@ -19,36 +17,35 @@ public class TransientStateMachine {
     // Constants for events
     public static final byte EVENT_CERT_VALID = 0;
     public static final byte EVENT_PIN_VERIFIED = 1;
+    public static final byte EVENT_APPLET_DESELECTED = 2;
 
-    private byte[] currentState;
+    private byte currentState;
 
     public TransientStateMachine() {
-        currentState = JCSystem.makeTransientByteArray((short) 1, JCSystem.CLEAR_ON_DESELECT);
-        currentState[0] = STATE_LOCKED;
+        currentState = STATE_LOCKED;
     }
 
     public void transition(byte event) {
-        switch (currentState[0]) {
+        switch (currentState) {
         case STATE_LOCKED:
             if (event == EVENT_CERT_VALID) {
-                currentState[0] = STATE_AUTHENTICATED;
+                currentState = STATE_AUTHENTICATED;
             }
             break;
         case STATE_AUTHENTICATED:
             if (event == EVENT_PIN_VERIFIED) {
-                currentState[0] = STATE_UNLOCKED;
+                currentState = STATE_UNLOCKED;
             }
             break;
         case STATE_UNLOCKED:
-            // No transitions from unlocked state
-            // The transient state machine is instantiated
-            // when a select command is received
-            // and is cleared when the applet is deselected.
+            if (event == EVENT_APPLET_DESELECTED) {
+                currentState = STATE_LOCKED;
+            }
             break;
         }
     }
 
     public byte getCurrentState() {
-        return currentState[0];
+        return currentState;
     }
 }

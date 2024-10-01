@@ -84,8 +84,8 @@ public class AppletCharon extends Applet {
 
     // State machines
     private AppletStateMachine appletFSM;
-    private Object[] transientFSM;
-    
+    private TransientStateMachine transientFSM;
+
     // RAM buffer
     private byte ramBuffer[];
 
@@ -97,10 +97,16 @@ public class AppletCharon extends Applet {
      */
     public boolean select() {
         // Initialize state machines
-        transientFSM = JCSystem.makeTransientObjectArray((short) 1, JCSystem.CLEAR_ON_DESELECT);
-        transientFSM[0] = new TransientStateMachine();
         secureChannel = null;
         return true;
+    }
+
+    /**
+     * Deselects the applet. Clears the transient state machine.
+     */
+    public void deselect() {
+        // Reset transient state machine
+        transientFSM.transition(TransientStateMachine.EVENT_APPLET_DESELECTED);
     }
 
     /**
@@ -146,6 +152,7 @@ public class AppletCharon extends Applet {
     protected AppletCharon(byte[] bArray, short bOffset, byte bLength) {
         // Create the FSM
         appletFSM = new AppletStateMachine();
+        transientFSM = new TransientStateMachine();
         secureChannel = null;
         pin = null;
         crypto = new CryptoUtil();
@@ -254,7 +261,7 @@ public class AppletCharon extends Applet {
         buffer[offset++] = appletFSM.getCurrentState();
 
         // Set the transient FSM state
-        buffer[offset++] = ((TransientStateMachine) transientFSM[0]).getCurrentState();
+        buffer[offset++] = transientFSM.getCurrentState();
 
         return offset;
     }

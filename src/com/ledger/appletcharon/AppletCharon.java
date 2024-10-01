@@ -26,6 +26,9 @@ import javacard.security.KeyBuilder;
  */
 
 public class AppletCharon extends Applet {
+    // Hardware wallet info
+    private static final byte HW_CERT_ROLE = (byte) 0x02; // Or 0x20 ?
+    private static final byte HW_SN_LENGTH = 4;
     // Applet / Card info
     private static final byte CARD_CERT_ROLE = (byte) 0x0A;
     private static final byte APPLET_MAJOR_VERSION = (byte) 0x00;
@@ -44,16 +47,14 @@ public class AppletCharon extends Applet {
     // Static certificate keys.
     private ECPrivateKey certificatePrivateKey;
     private ECPublicKey certificatePublicKey;
-//    private byte[] certificate;
     private byte[] issuerKey;
-
-    // Session keys
-//    private KeyAgreement sharedSecret;
-//    private MessageDigest sessionKey;
+    private byte[] hwStaticCertificatePublicKey;
 
     private SecureChannel secureChannel;
     private CryptoUtil crypto;
     private Certificate cardCertificate;
+    private EphemeralCertificate ephemeralCertificate;
+    private Capsule capsule;
 
     private static final byte APDU_HEADER_SIZE = 5;
     private static final byte LEDGER_COMMAND_CLA = (byte) 0x08;
@@ -70,6 +71,12 @@ public class AppletCharon extends Applet {
     private static final byte INS_CHANGE_PIN = (byte) 0x08;
     private static final byte INS_CREATE_BACKUP = (byte) 0x09;
     private static final byte INS_RESTORE_BACKUP = (byte) 0x0A;
+
+    // P1 values
+    private static final byte P1_GET_STATIC_CERTIFICATE = (byte) 0x00;
+    private static final byte P1_GET_EPHEMERAL_CERTIFICATE = (byte) 0x80;
+    private static final byte P1_VALIDATE_STATIC_CERTIFICATE = (byte) 0x00;
+    private static final byte P1_VALIDATE_EPHEMERAL_CERTIFICATE = (byte) 0x80;
 
     // GlobalPlatform classes and instructions code for SCP03
     // Instruction classes
@@ -157,7 +164,8 @@ public class AppletCharon extends Applet {
         pin = null;
         crypto = new CryptoUtil();
         cardCertificate = new Certificate(CARD_CERT_ROLE);
-        
+        ephemeralCertificate = new EphemeralCertificate(crypto, CARD_CERT_ROLE);
+//        capsule = new Capsule();
         // Dedicate some RAM
         if (ramBuffer == null) {
             ramBuffer = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
@@ -402,6 +410,175 @@ public class AppletCharon extends Applet {
     }
 
     /**
+     * Get the card certificate. Can be the static certificate signed by the issuer
+     * or an ephemeral certificate signed with the private key of the static
+     * certificate.
+     * 
+     * cla: 0x08
+     * 
+     * ins: 0x04
+     * 
+     * p1: 0x00 for static certificate, 0x80 for ephemeral certificate
+     * 
+     * p2: 0x00
+     * 
+     * lc : 0 if p1 = 0x00, 8 if p1 = 0x80
+     * 
+     * data: None if p1 = 0x00, host challenge (8b) if p1 = 0x80
+     * 
+     * return: reply buffer length. Buffer contains the certificate data (cf.
+     * getCardStaticCertificate and getCardEphemeralCertificate).
+     */
+    private short getCardCertificate(byte[] buffer) {
+        // Check P2 is 0
+        if (buffer[ISO7816.OFFSET_P2] != 0) {
+            ISOException.throwIt(ISO7816.SW_WRONG_P1P2);
+        }
+        // Check P1 = 0x00, get static certificate
+        if (buffer[ISO7816.OFFSET_P1] == P1_GET_STATIC_CERTIFICATE) {
+            // Check that host challenge is present
+            if (buffer[ISO7816.OFFSET_LC] == 0) {
+                ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+            }
+            ephemeralCertificate.setHostChallenge(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC]);
+            return cardCertificate.getCertificate(buffer, (short) 0);
+        } else if (buffer[ISO7816.OFFSET_P1] == P1_GET_EPHEMERAL_CERTIFICATE) {
+            // Check that no data is present
+            if (buffer[ISO7816.OFFSET_LC] != 0) {
+                ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+            }
+            return getCardEphemeralCertificate(buffer);
+        } else {
+            ISOException.throwIt(ISO7816.SW_WRONG_P1P2);
+        }
+        return 0;
+    }
+
+    /**
+     * Get an ephemeral certificate signed by the static certificate private key.
+     * 
+     * return: reply buffer length. Buffer contains the certificate data : [ Card
+     * challenge length (1b) | Card challenge (8b) | Card ephemeral public key
+     * length (1b) | Card ephemeral public key | Card ephemeral signature length
+     * (1b) | Card ephemeral signature ]
+     */
+    private short getCardEphemeralCertificate(byte[] buffer) {
+        ephemeralCertificate.initData(ramBuffer, (short) 0);
+        // Get the ephemeral certificate signed by the static certificate private key
+        return ephemeralCertificate.getSignedCertificate(buffer, (short) 0, certificatePrivateKey);
+    }
+
+    /**
+     * Validate hardware wallet (host) certificate. Either the static certificate
+     * issued by Ledger or the ephemeral certificate signed by the static
+     * certificate private key of the hardware wallet.
+     *
+     * cla: 0x08
+     *
+     * ins: 0x05
+     *
+     * p1: 0x00 for static certificate, 0x80 for ephemeral certificate
+     *
+     * p2: 0x00
+     *
+     * lc: data_len
+     *
+     * data: For static certificate validation : [ HW serial number length (1b) | HW
+     * serial number | HW public key length (1b) | HW public key | HW issuer
+     * signature length (1b) | HW issuer signature ]. For ephemeral certificate : [
+     * HW
+     *
+     * return: none
+     */
+    private short validateHostCertificate(byte[] buffer) {
+        // Check P2 is 0
+        if (buffer[ISO7816.OFFSET_P2] != 0) {
+            ISOException.throwIt(ISO7816.SW_WRONG_P1P2);
+        }
+        // Check P1 = 0x00, get static certificate
+        if (buffer[ISO7816.OFFSET_P1] == P1_VALIDATE_STATIC_CERTIFICATE) {
+            return validateHostStaticCertificate(buffer);
+        } else if (buffer[ISO7816.OFFSET_P1] == P1_VALIDATE_EPHEMERAL_CERTIFICATE) {
+            return validateHostEphemeralCertificate(buffer);
+        } else {
+            ISOException.throwIt(ISO7816.SW_WRONG_P1P2);
+        }
+        return 0;
+    }
+
+    private short validateHostStaticCertificate(byte[] buffer) {
+        // Keep offset for data parsing
+        short offset = ISO7816.OFFSET_CDATA;
+        // Copy HW role to ramBuffer
+        ramBuffer[0] = HW_CERT_ROLE;
+        // Copy HW serial number to ramBuffer
+        byte hwSNLength = buffer[offset++];
+        if (hwSNLength != HW_SN_LENGTH) {
+            ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+        }
+        Util.arrayCopy(buffer, offset, ramBuffer, (short) 1, hwSNLength);
+        offset += hwSNLength;
+        // Copy HW public key to ramBuffer
+        byte hwPubKeyLength = buffer[offset++];
+        Util.arrayCopy(buffer, offset, ramBuffer, (short) (1 + hwSNLength), hwPubKeyLength);
+        offset += hwPubKeyLength;
+        // Get HW issuer signature length
+        byte hwCertSignatureLength = buffer[offset++];
+        // Get Issuer public key and length, store it in ramBuffer
+        byte issuerPublicKeyLength = (byte) cardCertificate.getIssuerPublicKey(ramBuffer,
+                (short) (1 + hwSNLength + hwPubKeyLength));
+        // Verify signature
+        crypto.initCurve((byte) CryptoUtil.SECP256K1);
+        crypto.setVerificationKey(ramBuffer, (short) (1 + hwSNLength + hwPubKeyLength), issuerPublicKeyLength);
+        if (!crypto.verifySignature(ramBuffer, (short) 0, (short) (1 + hwSNLength + hwPubKeyLength), buffer, offset,
+                hwCertSignatureLength)) {
+            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+        } else {
+            // Store the public key for later use
+            if (hwStaticCertificatePublicKey == null) {
+                hwStaticCertificatePublicKey = JCSystem.makeTransientByteArray((short) hwPubKeyLength,
+                        JCSystem.CLEAR_ON_DESELECT);
+            }
+            Util.arrayCopyNonAtomic(ramBuffer, (short) (1 + hwSNLength), hwStaticCertificatePublicKey, (short) 0,
+                    hwPubKeyLength);
+        }
+        return 0;
+    }
+
+    private short validateHostEphemeralCertificate(byte[] buffer) {
+        // Keep offset for data parsing
+        short offset = ISO7816.OFFSET_CDATA;
+        // Skip APDU data header (header length (1b) + header data (1b))
+        offset += 2;
+        // Copy HW role to ramBuffer
+        ramBuffer[0] = HW_CERT_ROLE;
+        // Copy HW challenge to ramBuffer
+        short hostChallengeLength = ephemeralCertificate.getHostChallenge(ramBuffer, (short) 1);
+        // Copy card challenge to ramBuffer
+        short cardChallengeLength = ephemeralCertificate.getCardChallenge(ramBuffer, (short) (1 + hostChallengeLength));
+        // Copy HW ephemeral public key to ramBuffer
+        byte hwEphemeralPublicKeyLength = buffer[offset++];
+        Util.arrayCopy(buffer, offset, ramBuffer, (short) (1 + hostChallengeLength + cardChallengeLength),
+                hwEphemeralPublicKeyLength);
+        offset += hwEphemeralPublicKeyLength;
+        // Get HW signature length
+        byte hwEphemeralCertSignatureLength = buffer[offset++];
+        // Verify signature
+        crypto.initCurve((byte) CryptoUtil.SECP256K1);
+        crypto.setVerificationKey(hwStaticCertificatePublicKey, (short) 0, (short) hwStaticCertificatePublicKey.length);
+        if (!crypto.verifySignature(ramBuffer, (short) 0,
+                (short) (1 + hostChallengeLength + cardChallengeLength + hwEphemeralPublicKeyLength), buffer, offset,
+                hwEphemeralCertSignatureLength)) {
+            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+        } else {
+            // Generate encryption session key
+            // capsule.generateSessionKey(buffer, offset, hwEphemeralPublicKeyLength,
+            // ephemeralCertificate.getPrivateKey());
+        }
+        return 0;
+    }
+
+    /**
      * Processes an incoming APDU.
      * 
      * @see APDU
@@ -470,9 +647,12 @@ public class AppletCharon extends Applet {
             break;
         case INS_GET_CARD_CERTIFICATE:
 //            getCardCertificate(buffer);
+            // TODO : check FSM / Transient FSM states (here or inside function)
+            cdatalength = getCardCertificate(buffer);
             break;
         case INS_VALIDATE_HOST_CERTIFICATE:
-//            validateHostCertificate(buffer);
+            // TODO : check FSM / Transient FSM states (here or inside function)
+            cdatalength = validateHostCertificate(buffer);
             break;
         case INS_CREATE_PIN:
 //            createPIN(buffer);

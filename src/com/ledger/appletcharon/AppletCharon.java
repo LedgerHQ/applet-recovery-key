@@ -54,7 +54,6 @@ public class AppletCharon extends Applet {
     private CryptoUtil crypto;
     private Certificate cardCertificate;
     private EphemeralCertificate ephemeralCertificate;
-    private Capsule capsule;
 
     private static final byte APDU_HEADER_SIZE = 5;
     private static final byte LEDGER_COMMAND_CLA = (byte) 0x08;
@@ -102,6 +101,7 @@ public class AppletCharon extends Applet {
      * Selects the applet. Initializes the transient state machine (in locked
      * state).
      */
+    @Override
     public boolean select() {
         // Initialize state machines
         secureChannel = null;
@@ -218,8 +218,8 @@ public class AppletCharon extends Applet {
         if ((securityLevel & SecureChannel.AUTHENTICATED) != (short) SecureChannel.AUTHENTICATED) {
             return false;
         }
-        if ((securityLevel & SECURITY_LEVEL_MASK)
-            != (short) (SecureChannel.C_DECRYPTION | SecureChannel.C_MAC | SecureChannel.R_ENCRYPTION | SecureChannel.R_MAC)) {
+        if ((securityLevel & SECURITY_LEVEL_MASK) != (short) (SecureChannel.C_DECRYPTION | SecureChannel.C_MAC
+                | SecureChannel.R_ENCRYPTION | SecureChannel.R_MAC)) {
             return false;
         }
         return true;
@@ -276,8 +276,8 @@ public class AppletCharon extends Applet {
 
     /**
      * Set the Issuer private key. This key is used only during the card
-     * personalization to sign the card public key.
-     * This command is only for testing and will be removed.
+     * personalization to sign the card public key. This command is only for testing
+     * and will be removed.
      *
      * cla: 0x08
      *
@@ -289,18 +289,18 @@ public class AppletCharon extends Applet {
      *
      * lc: 0x20
      *
-     * data:
-     * - issuer private key (32b)
+     * data: - issuer private key (32b)
      *
      * return: none
      */
     private void setIssuerKey(byte[] buffer) {
         if (issuerKey == null) {
-            issuerKey = JCSystem.makeTransientByteArray((short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN, JCSystem.CLEAR_ON_DESELECT);
+            issuerKey = JCSystem.makeTransientByteArray((short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN,
+                    JCSystem.CLEAR_ON_DESELECT);
         }
-        Util.arrayCopy(buffer,  (short) ISO7816.OFFSET_CDATA, issuerKey, (short) 0, (short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN);
+        Util.arrayCopy(buffer, (short) ISO7816.OFFSET_CDATA, issuerKey, (short) 0,
+                (short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN);
     }
-
 
     /**
      * Get the card public key signed by a known Issuer private key.
@@ -317,18 +317,16 @@ public class AppletCharon extends Applet {
      *
      * data: none
      *
-     * return:
-     * - card public key length (1b)
-     * - card public key
-     * - card serial number length (1b)
-     * - card serial number
-     * - issuer signature length (1b)
-     * - issuer signature
+     * return: - card public key length (1b) - card public key - card serial number
+     * length (1b) - card serial number - issuer signature length (1b) - issuer
+     * signature
      */
     private short getPublicKey(byte[] buffer) {
         crypto.initCurve((byte) CryptoUtil.SECP256K1);
-        certificatePrivateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, crypto.getCurve().getCurveLength(), false);
-        certificatePublicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, crypto.getCurve().getCurveLength(), false);
+        certificatePrivateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE,
+                crypto.getCurve().getCurveLength(), false);
+        certificatePublicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC,
+                crypto.getCurve().getCurveLength(), false);
         // Use ramBuffer for temporary data
         crypto.generateKeyPair(ramBuffer, (short) 0, certificatePrivateKey, certificatePublicKey);
         if (issuerKey == null) {
@@ -349,16 +347,18 @@ public class AppletCharon extends Applet {
         buffer[(short) (publicKeyLength + 1)] = (byte) SN_LENGTH;
         Util.arrayCopy(serialNumber, (short) 0, buffer, (short) (publicKeyLength + 2), (short) SN_LENGTH);
         // Compute signature
-        short signatureLength = crypto.computeSignature(ramBuffer, (short) 0, outLength, buffer, (short)(publicKeyLength + 1 + SN_LENGTH + 2));
+        short signatureLength = crypto.computeSignature(ramBuffer, (short) 0, outLength, buffer,
+                (short) (publicKeyLength + 1 + SN_LENGTH + 2));
         outLength = (short) (publicKeyLength + 1 + SN_LENGTH + 1);
         buffer[outLength] = (byte) signatureLength;
 
-        // buffer = public_key_len || public key || serial_number_len || serial number || signature len || signature
+        // buffer = public_key_len || public key || serial_number_len || serial number
+        // || signature len || signature
         outLength += (short) (signatureLength + 1);
         return outLength;
     }
 
-     /**
+    /**
      * Set the card certificate issued by Ledger.
      *
      * cla: 0x08
@@ -371,14 +371,9 @@ public class AppletCharon extends Applet {
      *
      * lc: data_len
      *
-     * data:
-     * - batch serial number (4b)
-     * - issuer public key length (1b)
-     * - issuer public key
-     * - card serial number length (1b)
-     * - card serial number
-     * - issuer signature length (1b)
-     * - issuer signature
+     * data: - batch serial number (4b) - issuer public key length (1b) - issuer
+     * public key - card serial number length (1b) - card serial number - issuer
+     * signature length (1b) - issuer signature
      *
      * return: none
      */
@@ -465,7 +460,7 @@ public class AppletCharon extends Applet {
     private short getCardEphemeralCertificate(byte[] buffer) {
         ephemeralCertificate.initData(ramBuffer, (short) 0);
         // Get the ephemeral certificate signed by the static certificate private key
-        return ephemeralCertificate.getSignedCertificate(buffer, (short) 0, certificatePrivateKey);
+        return ephemeralCertificate.getSignedCertificate(ramBuffer, buffer, (short) 0, certificatePrivateKey);
     }
 
     /**
@@ -528,7 +523,9 @@ public class AppletCharon extends Applet {
         byte issuerPublicKeyLength = (byte) cardCertificate.getIssuerPublicKey(ramBuffer,
                 (short) (1 + hwSNLength + hwPubKeyLength));
         // Verify signature
-        crypto.initCurve((byte) CryptoUtil.SECP256K1);
+        if (crypto.getCurveId() != CryptoUtil.SECP256K1) {
+            crypto.initCurve((byte) CryptoUtil.SECP256K1);
+        }
         crypto.setVerificationKey(ramBuffer, (short) (1 + hwSNLength + hwPubKeyLength), issuerPublicKeyLength);
         if (!crypto.verifySignature(ramBuffer, (short) 0, (short) (1 + hwSNLength + hwPubKeyLength), buffer, offset,
                 hwCertSignatureLength)) {
@@ -564,7 +561,9 @@ public class AppletCharon extends Applet {
         // Get HW signature length
         byte hwEphemeralCertSignatureLength = buffer[offset++];
         // Verify signature
-        crypto.initCurve((byte) CryptoUtil.SECP256K1);
+        if (crypto.getCurveId() != CryptoUtil.SECP256K1) {
+            crypto.initCurve((byte) CryptoUtil.SECP256K1);
+        }
         crypto.setVerificationKey(hwStaticCertificatePublicKey, (short) 0, (short) hwStaticCertificatePublicKey.length);
         if (!crypto.verifySignature(ramBuffer, (short) 0,
                 (short) (1 + hostChallengeLength + cardChallengeLength + hwEphemeralPublicKeyLength), buffer, offset,

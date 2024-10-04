@@ -24,25 +24,40 @@ public class EphemeralCertificate {
     private byte[] hostChallengeLength;
     // Crypto utility
     private CryptoUtil crypto;
+    // Random data generator
+    private RandomData randomData;
 
     // Constructor
     public EphemeralCertificate(CryptoUtil crypto, byte cardCertEphRole) {
         this.crypto = crypto;
         this.cardCertEphRole = cardCertEphRole;
+        randomData = RandomData.getInstance(RandomData.ALG_TRNG);
     }
 
     protected void initData(byte[] buffer, short offset) {
         // Initialize curve
-        crypto.initCurve(CryptoUtil.SECP256K1);
+        if (crypto.getCurveId() != CryptoUtil.SECP256K1) {
+            crypto.initCurve(CryptoUtil.SECP256K1);
+        }
         // Generate key pair
-        privateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE_TRANSIENT_DESELECT,
-                crypto.getCurve().getCurveLength(), false);
-        publicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, crypto.getCurve().getCurveLength(),
-                false);
+        if (privateKey == null) {
+            privateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE_TRANSIENT_DESELECT,
+                    crypto.getCurve().getCurveLength(), false);
+        } else {
+            privateKey.clearKey();
+        }
+
+        if (publicKey == null) {
+            publicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC,
+                    crypto.getCurve().getCurveLength(), false);
+        } else {
+            publicKey.clearKey();
+        }
         crypto.generateKeyPair(buffer, (short) 0, privateKey, publicKey);
         // Create new card challenge
-        cardChallenge = JCSystem.makeTransientByteArray((short) CARD_CHALLENGE_LEN, JCSystem.CLEAR_ON_DESELECT);
-        RandomData randomData = RandomData.getInstance(RandomData.ALG_TRNG);
+        if (cardChallenge == null) {
+            cardChallenge = JCSystem.makeTransientByteArray((short) CARD_CHALLENGE_LEN, JCSystem.CLEAR_ON_DESELECT);
+        }
         randomData.nextBytes(cardChallenge, (short) 0, CARD_CHALLENGE_LEN);
     }
 
@@ -79,7 +94,8 @@ public class EphemeralCertificate {
         return privateKey;
     }
 
-    protected short getSignedCertificate(byte[] outCertificate, short offset, ECPrivateKey signingKey) {
+    protected short getSignedCertificate(byte[] tmpBuffer, byte[] outCertificate, short offset,
+            ECPrivateKey signingKey) {
         // Fill-in certificate data
         short outOffset = offset;
         outCertificate[outOffset++] = CARD_CHALLENGE_LEN;
@@ -90,14 +106,13 @@ public class EphemeralCertificate {
         outOffset += 1 + publicKeyLength;
         // Prepare data to sign
         short dataLength = (short) (1 + CARD_CHALLENGE_LEN + hostChallengeLength[0] + publicKeyLength);
-        byte[] dataToSign = JCSystem.makeTransientByteArray(dataLength, JCSystem.CLEAR_ON_DESELECT);
-        dataToSign[0] = cardCertEphRole;
-        Util.arrayCopy(cardChallenge, (short) 0, dataToSign, (short) 1, CARD_CHALLENGE_LEN);
-        Util.arrayCopy(hostChallenge, (short) 0, dataToSign, (short) (1 + CARD_CHALLENGE_LEN),
+        tmpBuffer[0] = cardCertEphRole;
+        Util.arrayCopy(cardChallenge, (short) 0, tmpBuffer, (short) 1, CARD_CHALLENGE_LEN);
+        Util.arrayCopy(hostChallenge, (short) 0, tmpBuffer, (short) (1 + CARD_CHALLENGE_LEN),
                 (short) hostChallengeLength[0]);
-        publicKey.getW(dataToSign, (short) (1 + CARD_CHALLENGE_LEN + hostChallengeLength[0]));
+        publicKey.getW(tmpBuffer, (short) (1 + CARD_CHALLENGE_LEN + hostChallengeLength[0]));
         // Compute signature
-        short signatureLength = crypto.computeSignatureWithKey(dataToSign, (short) 0, dataLength, outCertificate,
+        short signatureLength = crypto.computeSignatureWithKey(tmpBuffer, (short) 0, dataLength, outCertificate,
                 (short) (outOffset + 1), signingKey);
         // Fill-in signature length
         outCertificate[outOffset] = (byte) signatureLength;

@@ -17,15 +17,29 @@ import javacard.security.Signature;
 public class CryptoUtil {
     // Curve associated with the key pair
     private Curve curve;
+    private byte curveId;
     // Private key used for signature
     private ECPrivateKey signingKey;
     private ECPublicKey verificationKey;
+    private Signature signature;
 
     /* Constants */
+    protected static final byte NO_CURVE = (byte) 0x00;
     // SECP256K1 identifier
     protected static final byte SECP256K1 = (byte) 0x21;
     // Private key length over SECP256K1
     protected static final byte SECP256K1_PRIVATE_KEY_LEN = (byte) 32;
+
+    /**
+     * Constructor
+     */
+    public CryptoUtil() {
+        curve = null;
+        curveId = 0;
+        signingKey = null;
+        verificationKey = null;
+        signature = Signature.getInstance(Signature.ALG_ECDSA_SHA_256, false);
+    }
 
     /**
      * Initializes a curve for key generation, signature and, verification
@@ -36,6 +50,7 @@ public class CryptoUtil {
         switch (curveId) {
         case SECP256K1:
             curve = new Secp256k1();
+            this.curveId = curveId;
             break;
         // Add other curves if needed
         default:
@@ -50,6 +65,10 @@ public class CryptoUtil {
      */
     protected Curve getCurve() {
         return this.curve;
+    }
+
+    protected byte getCurveId() {
+        return this.curveId;
     }
 
     /**
@@ -82,15 +101,23 @@ public class CryptoUtil {
      * @param[in] length Private key length
      */
     protected void setSigningKey(byte[] privateKeyBuffer, short offset, short length) {
-        signingKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE_TRANSIENT_DESELECT,
-                curve.getCurveLength(), false);
+        if (signingKey == null) {
+            signingKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE_TRANSIENT_DESELECT,
+                    curve.getCurveLength(), false);
+        } else {
+            signingKey.clearKey();
+        }
         curve.setCurveParameters(signingKey);
         signingKey.setS(privateKeyBuffer, offset, length);
     }
 
     protected void setVerificationKey(byte[] publicKeyBuffer, short offset, short length) {
-        verificationKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, curve.getCurveLength(),
-                false);
+        if (verificationKey == null) {
+            verificationKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, curve.getCurveLength(),
+                    false);
+        } else {
+            verificationKey.clearKey();
+        }
         curve.setCurveParameters(verificationKey);
         verificationKey.setW(publicKeyBuffer, offset, length);
     }
@@ -114,14 +141,12 @@ public class CryptoUtil {
 
     protected short computeSignatureWithKey(byte[] dataBuffer, short offset, short dataLength, byte[] signatureBuffer,
             short signatureOffset, ECPrivateKey signingKey) {
-        Signature signature = Signature.getInstance(Signature.ALG_ECDSA_SHA_256, false);
         signature.init(signingKey, Signature.MODE_SIGN);
         return signature.sign(dataBuffer, offset, dataLength, signatureBuffer, signatureOffset);
     }
 
     protected boolean verifySignature(byte[] dataBuffer, short offset, short dataLength, byte[] signatureBuffer,
             short signatureOffset, short signatureLength) {
-        Signature signature = Signature.getInstance(Signature.ALG_ECDSA_SHA_256, false);
         signature.init(verificationKey, Signature.MODE_VERIFY);
         return signature.verify(dataBuffer, offset, dataLength, signatureBuffer, signatureOffset, signatureLength);
     }

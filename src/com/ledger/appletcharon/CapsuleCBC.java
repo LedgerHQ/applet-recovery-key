@@ -39,37 +39,36 @@ public class CapsuleCBC {
         ecdhAgreement = KeyAgreement.getInstance(KeyAgreement.ALG_EC_SVDP_DH_PLAIN_XY, false);
         messageDigest = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, false);
         // Use unpadded AES CBC because other padding methods actually just
-        // do zero padding. We are doing our own PKCS#7 padding.
+        // do zero padding. We are doing our own ISO7816 padding.
         cipher = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_CBC_NOPAD, false);
         hmac = Signature.getInstance(Signature.ALG_HMAC_SHA_256, false);
         randomData = RandomData.getInstance(RandomData.ALG_KEYGENERATION);
     }
 
-    private short padPKCS7(byte[] buffer, short offset, short length, short blockSize) {
+    private short padISO7816(byte[] buffer, short offset, short length, short blockSize) {
         short paddingLength = (short) (blockSize - (length % blockSize));
-        Util.arrayFillNonAtomic(buffer, (short) (offset + length), paddingLength, (byte) paddingLength);
+        // Add the padding start marker: 0x80
+        buffer[(short) (offset + length)] = (byte) 0x80;
+        // Fill the remaining space with 0x00
+        Util.arrayFillNonAtomic(buffer, (short) (offset + length + 1), (short) (paddingLength - 1), (byte) 0x00);
         return (short) (length + paddingLength);
     }
 
-    private short unpadPKCS7(byte[] buffer, short offset, short length) {
+    private short unpadISO7816(byte[] buffer, short offset, short length) {
         if (length == 0) {
             ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         }
-
-        byte paddingLength = buffer[(short) (offset + length - 1)];
-
-        if (paddingLength <= 0 || paddingLength > 16 || paddingLength > length) {
+        // Start from the end and search for the padding marker 0x80
+        short paddingStart = (short) (offset + length - 1);
+        // Look for the 0x80 marker
+        while (paddingStart >= offset && buffer[paddingStart] == (byte) 0x00) {
+            paddingStart--;
+        }
+        // Throw an exception if the padding marker is incorrect
+        if (buffer[paddingStart] != (byte) 0x80) {
             ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         }
-
-        // Verify the padding
-        for (short i = 1; i <= paddingLength; i++) {
-            if (buffer[(short) (offset + length - i)] != paddingLength) {
-                ISOException.throwIt(ISO7816.SW_DATA_INVALID);
-            }
-        }
-
-        return (short) (length - paddingLength);
+        return (short) (paddingStart - offset);
     }
 
     protected void generateSessionKeys(byte[] hostPublicKey, short hostPublicKeyOffset, short hostPublicKeyLength,
@@ -130,7 +129,7 @@ public class CapsuleCBC {
         // Prepend IV to the ciphertext
         Util.arrayCopy(iv, (short) 0, ciphertext, ciphertextOffset, AES_CBC_IV_LENGTH);
         // Pad plaintext
-        short paddedLength = padPKCS7(plaintext, plaintextOffset, plaintextLength, (short) AES_CBC_BLOCK_SIZE);
+        short paddedLength = padISO7816(plaintext, plaintextOffset, plaintextLength, (short) AES_CBC_BLOCK_SIZE);
         // Initialize AES cipher
         cipher.init(encSessionKey, Cipher.MODE_ENCRYPT, iv, (short) 0, (short) AES_CBC_IV_LENGTH);
         // Encrypt plaintext
@@ -166,7 +165,7 @@ public class CapsuleCBC {
             ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         }
         // Unpad plaintext
-        plaintextLength = unpadPKCS7(plaintext, plaintextOffset, plaintextLength);
+        plaintextLength = unpadISO7816(plaintext, plaintextOffset, plaintextLength);
         return plaintextLength;
     }
 }

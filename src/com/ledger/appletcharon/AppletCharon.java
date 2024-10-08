@@ -54,6 +54,7 @@ public class AppletCharon extends Applet {
     private CryptoUtil crypto;
     private Certificate cardCertificate;
     private EphemeralCertificate ephemeralCertificate;
+    private CapsuleCBC capsule;
 
     private static final byte APDU_HEADER_SIZE = 5;
     private static final byte LEDGER_COMMAND_CLA = (byte) 0x08;
@@ -63,13 +64,13 @@ public class AppletCharon extends Applet {
     private static final byte INS_SET_ISSUER_KEY = (byte) 0x02;
     private static final byte INS_GET_PUBLIC_KEY = (byte) 0x40;
     private static final byte INS_SET_CERTIFICATE = (byte) 0x41;
-    private static final byte INS_GET_CARD_CERTIFICATE = (byte) 0x04;
-    private static final byte INS_VALIDATE_HOST_CERTIFICATE = (byte) 0x05;
-    private static final byte INS_CREATE_PIN = (byte) 0x06;
-    private static final byte INS_VERIFY_PIN = (byte) 0x07;
-    private static final byte INS_CHANGE_PIN = (byte) 0x08;
-    private static final byte INS_CREATE_BACKUP = (byte) 0x09;
-    private static final byte INS_RESTORE_BACKUP = (byte) 0x0A;
+    private static final byte INS_GET_CARD_CERTIFICATE = (byte) 0x52;
+    private static final byte INS_VALIDATE_HOST_CERTIFICATE = (byte) 0x51;
+    private static final byte INS_CREATE_PIN = (byte) 0xD0;
+    private static final byte INS_VERIFY_PIN = (byte) 0x20;
+    private static final byte INS_CHANGE_PIN = (byte) 0x24;
+    private static final byte INS_CREATE_BACKUP = (byte) 0xE0;
+    private static final byte INS_RESTORE_BACKUP = (byte) 0x14;
 
     // P1 values
     private static final byte P1_GET_STATIC_CERTIFICATE = (byte) 0x00;
@@ -165,7 +166,7 @@ public class AppletCharon extends Applet {
         crypto = new CryptoUtil();
         cardCertificate = new Certificate(CARD_CERT_ROLE);
         ephemeralCertificate = new EphemeralCertificate(crypto, CARD_CERT_ROLE);
-//        capsule = new Capsule();
+        capsule = new CapsuleCBC();
         // Dedicate some RAM
         if (ramBuffer == null) {
             ramBuffer = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
@@ -571,8 +572,8 @@ public class AppletCharon extends Applet {
             ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         } else {
             // Generate encryption session key
-            // capsule.generateSessionKey(buffer, offset, hwEphemeralPublicKeyLength,
-            // ephemeralCertificate.getPrivateKey());
+            capsule.generateSessionKeys(ramBuffer, (short) (1 + hostChallengeLength + cardChallengeLength),
+                    hwEphemeralPublicKeyLength, ephemeralCertificate.getPrivateKey());
         }
         return 0;
     }
@@ -626,6 +627,10 @@ public class AppletCharon extends Applet {
         switch (buffer[ISO7816.OFFSET_INS]) {
         case INS_GET_INFO:
             cdatalength = getInfo(buffer);
+            // Encrypt the response
+            cdatalength = capsule.encryptData(buffer, (short) 0, cdatalength, ramBuffer, (short) 0);
+            // Copy the encrypted data to the buffer
+            Util.arrayCopyNonAtomic(ramBuffer, (short) 0, buffer, (short) 0, cdatalength);
             break;
         case INS_SET_ISSUER_KEY:
             setIssuerKey(buffer);

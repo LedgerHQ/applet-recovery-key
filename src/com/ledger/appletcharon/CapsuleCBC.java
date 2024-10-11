@@ -40,35 +40,9 @@ public class CapsuleCBC {
         messageDigest = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, false);
         // Use unpadded AES CBC because other padding methods actually just
         // do zero padding. We are doing our own ISO7816 padding.
-        cipher = Cipher.getInstance(Cipher.ALG_AES_BLOCK_128_CBC_NOPAD, false);
+        cipher = Cipher.getInstance(Cipher.ALG_AES_CBC_ISO9797_M2, false);
         hmac = Signature.getInstance(Signature.ALG_HMAC_SHA_256, false);
         randomData = RandomData.getInstance(RandomData.ALG_KEYGENERATION);
-    }
-
-    private short padISO7816(byte[] buffer, short offset, short length, short blockSize) {
-        short paddingLength = (short) (blockSize - (length % blockSize));
-        // Add the padding start marker: 0x80
-        buffer[(short) (offset + length)] = (byte) 0x80;
-        // Fill the remaining space with 0x00
-        Util.arrayFillNonAtomic(buffer, (short) (offset + length + 1), (short) (paddingLength - 1), (byte) 0x00);
-        return (short) (length + paddingLength);
-    }
-
-    private short unpadISO7816(byte[] buffer, short offset, short length) {
-        if (length == 0) {
-            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
-        }
-        // Start from the end and search for the padding marker 0x80
-        short paddingStart = (short) (offset + length - 1);
-        // Look for the 0x80 marker
-        while (paddingStart >= offset && buffer[paddingStart] == (byte) 0x00) {
-            paddingStart--;
-        }
-        // Throw an exception if the padding marker is incorrect
-        if (buffer[paddingStart] != (byte) 0x80) {
-            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
-        }
-        return (short) (paddingStart - offset);
     }
 
     protected void generateSessionKeys(byte[] hostPublicKey, short hostPublicKeyOffset, short hostPublicKeyLength,
@@ -87,8 +61,7 @@ public class CapsuleCBC {
         Util.arrayFill(key_counter, (short) 0, KEY_COUNTER_LENGTH, (byte) 0);
         Util.arrayCopy(key_counter, (short) 0, sharedSecret, (short) 0, KEY_COUNTER_LENGTH);
         // Generate shared secret
-        ecdhAgreement.generateSecret(hostPublicKey, hostPublicKeyOffset, hostPublicKeyLength, sharedSecret,
-                (short) KEY_COUNTER_LENGTH);
+        ecdhAgreement.generateSecret(hostPublicKey, hostPublicKeyOffset, hostPublicKeyLength, sharedSecret, (short) KEY_COUNTER_LENGTH);
         // Initialize rawEncSessionKey byte array
         if (rawEncSessionKey == null) {
             rawEncSessionKey = JCSystem.makeTransientByteArray(KEY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
@@ -97,8 +70,7 @@ public class CapsuleCBC {
         messageDigest.reset();
         messageDigest.doFinal(sharedSecret, (short) 0, SHARED_SECRET_LENGTH, rawEncSessionKey, (short) 0);
         // Initialize AES key
-        encSessionKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES_TRANSIENT_DESELECT, KeyBuilder.LENGTH_AES_256,
-                false);
+        encSessionKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES_TRANSIENT_DESELECT, KeyBuilder.LENGTH_AES_256, false);
         encSessionKey.setKey(rawEncSessionKey, (short) 0);
         // Increment key counter and update shared secret
         key_counter[3]++;
@@ -111,16 +83,15 @@ public class CapsuleCBC {
         messageDigest.reset();
         messageDigest.doFinal(sharedSecret, (short) 0, SHARED_SECRET_LENGTH, rawMacSessionKey, (short) 0);
         // Initialize HMAC key
-        macSessionKey = (HMACKey) KeyBuilder.buildKey(KeyBuilder.TYPE_HMAC_TRANSIENT_DESELECT,
-                KeyBuilder.LENGTH_HMAC_SHA_256_BLOCK_64, false);
+        macSessionKey = (HMACKey) KeyBuilder.buildKey(KeyBuilder.TYPE_HMAC_TRANSIENT_DESELECT, KeyBuilder.LENGTH_HMAC_SHA_256_BLOCK_64,
+                false);
         // Use the first 8 bytes of the rawMacSessionKey as the HMAC key. Max size
         // allowed by
         // LENGTH_HMAC_SHA_256_BLOCK_64 is 64 bits.
         macSessionKey.setKey(rawMacSessionKey, (short) 0, (short) (macSessionKey.getSize() / 8));
     }
 
-    protected short encryptData(byte[] plaintext, short plaintextOffset, short plaintextLength, byte[] ciphertext,
-            short ciphertextOffset) {
+    protected short encryptData(byte[] plaintext, short plaintextOffset, short plaintextLength, byte[] ciphertext, short ciphertextOffset) {
         // Generate IV
         if (iv == null) {
             iv = JCSystem.makeTransientByteArray(AES_CBC_IV_LENGTH, JCSystem.CLEAR_ON_DESELECT);
@@ -128,12 +99,10 @@ public class CapsuleCBC {
         randomData.nextBytes(iv, (short) 0, (short) iv.length);
         // Prepend IV to the ciphertext
         Util.arrayCopy(iv, (short) 0, ciphertext, ciphertextOffset, AES_CBC_IV_LENGTH);
-        // Pad plaintext
-        short paddedLength = padISO7816(plaintext, plaintextOffset, plaintextLength, (short) AES_CBC_BLOCK_SIZE);
         // Initialize AES cipher
         cipher.init(encSessionKey, Cipher.MODE_ENCRYPT, iv, (short) 0, (short) AES_CBC_IV_LENGTH);
         // Encrypt plaintext
-        short outLength = cipher.doFinal(plaintext, plaintextOffset, paddedLength, ciphertext,
+        short outLength = cipher.doFinal(plaintext, plaintextOffset, plaintextLength, ciphertext,
                 (short) (ciphertextOffset + AES_CBC_IV_LENGTH));
         // Initialize HMAC key
         hmac.init(macSessionKey, Signature.MODE_SIGN);
@@ -143,8 +112,7 @@ public class CapsuleCBC {
         return (short) (outLength + AES_CBC_IV_LENGTH + HMAC_LENGTH);
     }
 
-    protected short decryptData(byte[] inData, short inOffset, short inDataLength, byte[] plaintext,
-            short plaintextOffset) {
+    protected short decryptData(byte[] inData, short inOffset, short inDataLength, byte[] plaintext, short plaintextOffset) {
         // Get IV from the first block of the ciphertext
         if (iv == null) {
             iv = JCSystem.makeTransientByteArray(AES_CBC_IV_LENGTH, JCSystem.CLEAR_ON_DESELECT);
@@ -158,14 +126,11 @@ public class CapsuleCBC {
         // Initialize HMAC key
         hmac.init(macSessionKey, Signature.MODE_VERIFY);
         // Verify HMAC
-        if (hmac.verify(inData, (short) (inOffset + AES_CBC_IV_LENGTH),
-                (short) (inDataLength - AES_CBC_IV_LENGTH - HMAC_LENGTH), inData,
+        if (hmac.verify(inData, (short) (inOffset + AES_CBC_IV_LENGTH), (short) (inDataLength - AES_CBC_IV_LENGTH - HMAC_LENGTH), inData,
                 (short) (inOffset + inDataLength - HMAC_LENGTH), HMAC_LENGTH) == false) {
             // Throw an exception
             ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         }
-        // Unpad plaintext
-        plaintextLength = unpadISO7816(plaintext, plaintextOffset, plaintextLength);
         return plaintextLength;
     }
 }

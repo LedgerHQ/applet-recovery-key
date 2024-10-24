@@ -1,0 +1,29 @@
+name: Generate applet CAP and run python tests
+
+on:
+    workflow_dispatch:
+    push:
+      branches:
+        - master
+        - main
+        - develop
+    pull_request:
+
+jobs:
+  pull-docker-image:
+    runs-on: ubuntu-22.04
+
+    container:
+      image: docker.io/alexisgrojean/applet-builder:latest
+      credentials:
+        username: alexisgrojean
+        password: ${{ secrets.DOCKER_TOKEN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Verify Docker Container
+        run: |
+            pwd
+            ls -al

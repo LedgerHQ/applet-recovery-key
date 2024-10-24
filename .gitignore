@@ -7,3 +7,5 @@
 bin/
 deliverables/
 configurations/
+.gen/
+?/

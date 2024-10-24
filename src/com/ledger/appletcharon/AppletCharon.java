@@ -26,8 +26,9 @@ import javacard.security.KeyBuilder;
 
 public class AppletCharon extends Applet {
     // Hardware wallet info
-    private static final byte HW_CERT_ROLE = (byte) 0x02; // Or 0x20 ?
-    private static final byte HW_SN_LENGTH = 4;
+    private static final byte HW_CERT_ROLE = (byte) 0x02;
+    private static final byte HW_EPH_CERT_ROLE = (byte) 0x12;
+    private static final byte HW_SN_LENGTH = 7;
     // Applet / Card info
     private static final byte CARD_CERT_ROLE = (byte) 0x0A;
     private static final byte APPLET_MAJOR_VERSION = (byte) 0x00;
@@ -629,10 +630,10 @@ public class AppletCharon extends Applet {
     private short validateHostEphemeralCertificate(byte[] buffer) {
         // Keep offset for data parsing
         short offset = ISO7816.OFFSET_CDATA;
-        // Skip APDU data header (header length (1b) + header data (1b))
-        offset += 2;
+        // Skip APDU data header (1b, always 0x00)
+        offset += 1;
         // Copy HW role to ramBuffer
-        ramBuffer[0] = HW_CERT_ROLE;
+        ramBuffer[0] = HW_EPH_CERT_ROLE;
         // Copy HW challenge to ramBuffer
         short hostChallengeLength = ephemeralCertificate.getHostChallenge(ramBuffer, (short) 1);
         // Copy card challenge to ramBuffer

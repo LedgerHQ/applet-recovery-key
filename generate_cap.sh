@@ -15,7 +15,7 @@ show_help() {
     echo "  -d, --docker      Generate cap inside applet-builder docker container"
     echo "  -c, --clean       Clean build artifacts"
     echo "  -h, --help        Show this help message"
-    echo "  -p, --path        Set dependencies path"
+    echo "  -p, --path        Set dependencies path (for local generation only)"
     echo ""
     echo "Without any options, the script will generate the CAP file."
     exit 0

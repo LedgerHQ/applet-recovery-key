@@ -30,11 +30,10 @@ jobs:
     
       - name: Setup PDM
         uses: pdm-project/setup-pdm@v4
-        # You are now able to use PDM in your workflow
-      - name: Setup the environment
+
+      - name: Setup tests environment
         run: |
             export GH_USER=${{ secrets.GH_USER }}
             export GH_TOKEN=${{ secrets.GH_TOKEN }}
-            cd tests
             pdm lock -G github-actions
             pdm install -G github-actions

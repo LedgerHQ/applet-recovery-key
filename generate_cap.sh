@@ -15,19 +15,27 @@ show_help() {
     echo "  -d, --docker      Generate cap inside applet-builder docker container"
     echo "  -c, --clean       Clean build artifacts"
     echo "  -h, --help        Show this help message"
+    echo "  -p, --path        Set dependencies path"
     echo ""
     echo "Without any options, the script will generate the CAP file."
     exit 0
 }
 
-HOME="/home/devuser"
+# Initialize DEPS_PATH with default value
+DEPS_PATH=$HOME
+
+# Update paths based on DEPS_PATH
+update_paths() {
+    GP_API_PATH="$DEPS_PATH/GlobalPlatform_Card_API-org.globalplatform-v1.7.1"
+    JCDK_PATH="$DEPS_PATH/java_card_devkit"
+    JCAPI_PATH="$JCDK_PATH/lib/api_classic-3.0.5.jar"
+    JCAPI_ANNOTATIONS_PATH=$JCDK_PATH"/lib/api_classic_annotations-3.0.5.jar"
+}
+
 GP_API_URL="https://globalplatform.org/wp-content/themes/globalplatform/ajax/file-download.php?f=https://globalplatform.org/wp-content/uploads/2019/07/GlobalPlatform_Card_API-org.globalplatform-v1.7.1.zip"
-GP_API_PATH="$HOME/GlobalPlatform_Card_API-org.globalplatform-v1.7.1"
-JCDK_PATH="$HOME/java_card_devkit"
-JCAPI_PATH="$JCDK_PATH/lib/api_classic-3.0.5.jar"
-JCAPI_ANNOTATIONS_PATH=$JCDK_PATH"/lib/api_classic_annotations-3.0.5.jar"
 JAVA_HOME="/usr/java/jdk-17-oracle-x64"
 export JAVA_HOME
+update_paths
 
 # DOCKER_IMAGE="containers.git.orange.ledgerlabs.net/embedded-software/applet-builder:latest"
 DOCKER_IMAGE=alexisgrojean/applet-builder:latest
@@ -52,12 +60,23 @@ clean() {
     # Remove any .class files in case they're scattered
     find . -name "*.class" -type f -delete
     
-    # Remove any temporary files that might have been created
-    find . -name "*~" -type f -delete
-    find . -name "*.bak" -type f -delete
-    
     green "Clean completed successfully"
     exit 0
+}
+
+# Helper function to run commands in docker
+run_in_docker() {
+    local command=$1
+    local error_message=${2:-"Docker command failed"}
+    if ! docker run --rm --name $CONTAINER_NAME \
+        --user $(id -u):$(id -g) \
+        --privileged \
+        -v "${PWD}:/applet" \
+        $DOCKER_IMAGE \
+        bash -c "cd /applet && $(declare -f red) && $(declare -f green) && $(declare -f yellow) && $(declare -f update_paths) && $command"; then
+        red "Error: $error_message"
+        exit 1
+    fi
 }
 
 # Function to check required dependencies
@@ -67,21 +86,21 @@ check_dependencies() {
     # Check for JDK 17
     if [ ! -d $JAVA_HOME ]; then
         red "Error: JDK 17 not found in $JAVA_HOME"
-        red "Please ensure JDK 17 is properly installed"
+        red "Please ensure JDK 17 is properly installed in $JAVA_HOME"
         exit 1
     fi
 
     # Check for JavaCard DevKit
     if [ ! -d $JCDK_PATH ]; then
         red "Error: JavaCard DevKit not found in $JCDK_PATH"
-        red "Please ensure JavaCard DevKit is properly installed"
+        red "Please ensure JavaCard DevKit is properly installed in $JCDK_PATH"
         exit 1
     fi
 
     # Check for specific required files
     if [ ! -f $JCAPI_PATH ]; then
         red "Error: JavaCard API Classic jar not found in $JCAPI_PATH"
-        red "Please ensure JavaCard DevKit is properly installed"
+        red "Please ensure JavaCard DevKit is properly installed in $JCDK_PATH"
         exit 1
     fi
 
@@ -93,7 +112,7 @@ check_dependencies() {
             exit 1
         fi
         
-        if ! unzip /tmp/gp-api.zip -d $HOME; then
+        if ! unzip /tmp/gp-api.zip -d $DEPS_PATH; then
             red "Error: Failed to extract GP API"
             rm /tmp/gp-api.zip
             exit 1
@@ -131,31 +150,17 @@ setup_docker_and_generate_cap() {
     fi
     
     yellow "Generate cap in container..."
-    if ! docker run --rm --name applet-builder \
-        --user $(id -u):$(id -g) \
-        --privileged \
-        -v "${PWD}:/applet" \
-        $DOCKER_IMAGE \
-        bash -c "cd /applet && $(declare -f check_dependencies) && $(declare -f generate_cap) && generate_cap true"; then
-        red "Error: Build in container failed"
-        exit 1
-    fi
+    run_in_docker "$(declare -f check_dependencies) && $(declare -f generate_cap) && generate_cap true" "Build in container failed"
 }
 
 # Function to build the CAP file with parameter to check if inside docker container
 generate_cap() {
     local inside_docker=$1
     if [ "$inside_docker" = true ]; then
-        echo $HOME
-        echo "INSIDE DOCKER"
-        ls /home/devuser
+        DEPS_PATH=$HOME
         GP_API_URL="https://globalplatform.org/wp-content/themes/globalplatform/ajax/file-download.php?f=https://globalplatform.org/wp-content/uploads/2019/07/GlobalPlatform_Card_API-org.globalplatform-v1.7.1.zip"
-        GP_API_PATH="$HOME/GlobalPlatform_Card_API-org.globalplatform-v1.7.1"
-        JCDK_PATH="$HOME/java_card_devkit"
-        JCAPI_PATH="$JCDK_PATH/lib/api_classic-3.0.5.jar"
-        JCAPI_ANNOTATIONS_PATH=$JCDK_PATH"/lib/api_classic_annotations-3.0.5.jar"
         JAVA_HOME="/usr/java/jdk-17-oracle-x64"
-
+        update_paths
         # redefine color functions
         red() { echo -e "\e[31m$*\e[0m"; }
         green() { echo -e "\e[32m$*\e[0m"; }
@@ -167,7 +172,7 @@ generate_cap() {
     yellow "Creating bin directory if it doesn't exist..."
     mkdir -p bin
 
-    green "Compiling Java sources..."
+    yellow "Compiling Java sources..."
     if ! $JAVA_HOME/bin/javac -source 7 -target 7 -g \
         -cp $JCAPI_PATH \
         -cp "$JCAPI_PATH:$JCAPI_ANNOTATIONS_PATH:$GP_API_PATH/1.5/gpapi-globalplatform.jar" \
@@ -208,6 +213,16 @@ while [[ $# -gt 0 ]]; do
         -d|--docker)
             DOCKER=true
             shift
+            ;;
+        -p|--path)
+            if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+                DEPS_PATH=$2
+                update_paths
+                shift 2
+            else
+                red "Error: -p|--path requires a valid path argument."
+                exit 1
+            fi
             ;;
         -h|--help)
             show_help

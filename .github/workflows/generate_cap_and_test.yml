@@ -26,4 +26,4 @@ jobs:
 
       - name: Generate CAP
         run: |
-            ./generate_cap.sh
+            ./generate_cap.sh -p "/home/devuser"

@@ -10,8 +10,9 @@ on:
     pull_request:
 
 jobs:
-  pull-docker-image:
+  generate-and-test:
     runs-on: ubuntu-22.04
+    name: Generate CAP and run tests
 
     container:
       image: docker.io/alexisgrojean/applet-builder:latest
@@ -23,7 +24,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Verify Docker Container
+      - name: Generate CAP
         run: |
-            pwd
-            ls -al
+            ./generate_cap.sh

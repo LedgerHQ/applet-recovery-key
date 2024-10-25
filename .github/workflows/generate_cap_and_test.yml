@@ -17,7 +17,7 @@ jobs:
     container:
       image: docker.io/alexisgrojean/applet-builder:latest
       credentials:
-        username: alexisgrojean
+        username: ${{ secrets.DOCKER_USER }}
         password: ${{ secrets.DOCKER_TOKEN }}
 
     steps:
@@ -27,3 +27,14 @@ jobs:
       - name: Generate CAP
         run: |
             ./generate_cap.sh -p "/home/devuser"
+    
+      - name: Setup PDM
+        uses: pdm-project/setup-pdm@v4
+        # You are now able to use PDM in your workflow
+      - name: Setup the environment
+        run: |
+            export GH_USER=${{ secrets.GH_USER }}
+            export GH_TOKEN=${{ secrets.GH_TOKEN }}
+            cd tests
+            pdm lock -G github-actions
+            pdm install -G github-actions

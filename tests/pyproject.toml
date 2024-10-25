@@ -1,0 +1,21 @@
+[project]
+name = "tests"
+version = "0.1.0"
+requires-python = "==3.11.*"
+description = "Python functional tests for the Charon smartcard applet"
+authors = [
+    {name = "Alexis Grojean", email = "alexis.grojean@ledger.fr"},
+]
+dependencies = [
+  "pytest>=8.3.3",
+]
+
+[project.optional-dependencies]
+local = [ "ledger-pluto @ git+ssh://git@github.com/LedgerHQ/ledger-pluto.git@main" ]
+github-actions = [ "ledger-pluto @ git+https://${GH_USER}:${GH_TOKEN}@github.com/LedgerHQ/ledger-pluto.git@main" ]
+
+readme = "README.md"
+license = {text = "MIT"}
+
+[tool.pdm]
+distribution = false

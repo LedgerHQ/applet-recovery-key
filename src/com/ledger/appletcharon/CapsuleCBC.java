@@ -1,6 +1,5 @@
 package com.ledger.appletcharon;
 
-import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
@@ -121,16 +120,27 @@ public class CapsuleCBC {
         // Initialize AES cipher
         cipher.init(encSessionKey, Cipher.MODE_DECRYPT, iv, (short) 0, AES_CBC_IV_LENGTH);
         // Decrypt ciphertext
-        short plaintextLength = cipher.doFinal(inData, (short) (inOffset + AES_CBC_IV_LENGTH),
-                (short) (inDataLength - AES_CBC_IV_LENGTH - HMAC_LENGTH), plaintext, plaintextOffset);
+        short plaintextLength = 0;
+        try {
+            plaintextLength = cipher.doFinal(inData, (short) (inOffset + AES_CBC_IV_LENGTH),
+                    (short) (inDataLength - AES_CBC_IV_LENGTH - HMAC_LENGTH), plaintext, plaintextOffset);
+        } catch (Exception e) {
+            ISOException.throwIt((short) com.ledger.appletcharon.AppletCharon.SW_INCORRECT_SCP_LEDGER);
+        }
         // Initialize HMAC key
         hmac.init(macSessionKey, Signature.MODE_VERIFY);
         // Verify HMAC
         if (hmac.verify(inData, (short) (inOffset + AES_CBC_IV_LENGTH), (short) (inDataLength - AES_CBC_IV_LENGTH - HMAC_LENGTH), inData,
                 (short) (inOffset + inDataLength - HMAC_LENGTH), HMAC_LENGTH) == false) {
-            // Throw an exception
-            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+            ISOException.throwIt((short) com.ledger.appletcharon.AppletCharon.SW_INCORRECT_SCP_LEDGER);
         }
         return plaintextLength;
+    }
+
+    protected boolean checkMAC(byte[] inData, short inOffset, short inDataLength, short inMACLength, short inMACOffset) {
+        // Initialize HMAC key
+        hmac.init(macSessionKey, Signature.MODE_VERIFY);
+        // Verify HMAC
+        return hmac.verify(inData, inOffset, inDataLength, inData, inMACOffset, inMACLength);
     }
 }

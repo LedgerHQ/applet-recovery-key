@@ -8,7 +8,9 @@ public class AppletStateMachine {
 
     // Constants for events
     public static final byte EVENT_SET_CERTIFICATE = 0;
-    public static final byte EVENT_CREATE_BACKUP = 1;
+    public static final byte EVENT_SET_SEED = 1;
+    public static final byte EVENT_PIN_TRY_LIMIT_EXCEEDED = 2;
+    public static final byte EVENT_FACTORY_RESET = 3;
 
     private byte currentState;
 
@@ -24,14 +26,14 @@ public class AppletStateMachine {
             }
             break;
         case STATE_ATTESTED:
-            if (event == EVENT_CREATE_BACKUP) {
+            if (event == EVENT_SET_SEED) {
                 currentState = STATE_USER_PERSONALIZED;
             }
             break;
         case STATE_USER_PERSONALIZED:
-            // No transitions from user personalized state yet...
-            // Maybe the FSM should go back to attested if the user
-            // enters too many wrong PINs or go to a new blocked state.
+            if (event == EVENT_PIN_TRY_LIMIT_EXCEEDED || event == EVENT_FACTORY_RESET) {
+                currentState = STATE_ATTESTED;
+            }
             break;
         }
     }

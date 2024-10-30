@@ -13,7 +13,6 @@ import javacard.framework.Applet;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
-import javacard.framework.OwnerPIN;
 import javacard.framework.Util;
 import javacard.security.ECPrivateKey;
 import javacard.security.ECPublicKey;
@@ -39,10 +38,8 @@ public class AppletCharon extends Applet {
     private byte[] serialNumber;
     private static final byte SN_LENGTH = 4;
 
-    private OwnerPIN pin;
-    private static final byte PIN_TRY_LIMIT = 3;
-    private static final byte PIN_MIN_SIZE = 4;
-    private static final byte PIN_MAX_SIZE = 8;
+    private PINManager pinManager;
+    private SeedManager seedManager;
 
     // Static certificate keys.
     private ECPrivateKey certificatePrivateKey;
@@ -56,21 +53,29 @@ public class AppletCharon extends Applet {
     private EphemeralCertificate ephemeralCertificate;
     private CapsuleCBC capsule;
 
+    // Seed storage object
+    private ECPrivateKey seedBackup;
+
     private static final byte APDU_HEADER_SIZE = 5;
     private static final byte LEDGER_COMMAND_CLA = (byte) 0x08;
 
     // Instruction codes
     private static final byte INS_GET_INFO = (byte) 0x01;
     private static final byte INS_SET_ISSUER_KEY = (byte) 0x02;
+    private static final byte INS_GET_STATUS = (byte) 0xF2;
+    private static final byte INS_GET_DATA = (byte) 0xCA;
     private static final byte INS_GET_PUBLIC_KEY = (byte) 0x40;
     private static final byte INS_SET_CERTIFICATE = (byte) 0x41;
     private static final byte INS_GET_CARD_CERTIFICATE = (byte) 0x52;
     private static final byte INS_VALIDATE_HOST_CERTIFICATE = (byte) 0x51;
-    private static final byte INS_CREATE_PIN = (byte) 0xD0;
+    private static final byte INS_SET_PIN = (byte) 0xD0;
+    private static final byte INS_SET_SEED = (byte) 0xE0;
     private static final byte INS_VERIFY_PIN = (byte) 0x20;
-    private static final byte INS_CHANGE_PIN = (byte) 0x24;
-    private static final byte INS_CREATE_BACKUP = (byte) 0xE0;
-    private static final byte INS_RESTORE_BACKUP = (byte) 0x14;
+    private static final byte INS_PIN_CHANGE = (byte) 0x24;
+    private static final byte INS_RESTORE_SEED = (byte) 0x14;
+    private static final byte INS_VERIFY_SEED = (byte) 0x2A;
+    private static final byte INS_SET_DATA = (byte) 0xDA;
+    private static final byte INS_FACTORY_RESET = (byte) 0xE4;
 
     // P1 values
     private static final byte P1_GET_STATIC_CERTIFICATE = (byte) 0x00;
@@ -88,12 +93,41 @@ public class AppletCharon extends Applet {
 
     // Invalid input parameter to command
     private static final short SW_INVALID_PARAMETER = (short) 0x9C0F;
+    // PIN try counter changed
+    protected static final short SW_PIN_COUNTER_CHANGED = (short) 0x63C0;
+    // Not enough memory in NVM to store the requested element
+    private static final short SW_NOT_ENOUGH_MEMORY = (short) 0x6581;
+    // Wrong APDU data field length / Wrong Lc value
+    protected static final short SW_WRONG_LENGTH = (short) 0x6700;
+    // Expected 'SCP Ledger' Secure Messaging Data Objects missing
+    private static final short SW_MISSING_SCP_LEDGER = (short) 0x6887;
+    // Failed to decrypt or verify the MAC for this SCP
+    protected static final short SW_INCORRECT_SCP_LEDGER = (short) 0x6888;
+    // Security status not satisfied
+    private static final short SW_SECURITY_STATUS = (short) 0x6982;
+    // Authentication method blocked (PIN tries exceeded, applet will reset)
+    private static final short SW_AUTHENTICATION_BLOCKED = (short) 0x6983;
+    // Expected 'SCP03' Secure Messaging Data Objects missing
+    private static final short SW_MISSING_SCP03 = (short) 0x6987;
+    // Incorrect ‘SCP03’ Data Object (i.e. failed to decrypt or to verify the MAC
+    // for this SCP)
+    private static final short SW_INCORRECT_SCP03 = (short) 0x6988;
+    // Incorrect parameters in the data field of the incoming command
+    private static final short SW_INCORRECT_PARAMETERS = (short) 0x6A80;
+    // Wrong P1-P2 parameters (for all commands except Get Data / Set Data)
+    private static final short SW_WRONG_P1P2 = (short) 0x6A86;
+    // Reference Data not found (i.e. bad P1-P2 for the Get Data / Set Data
+    // commands)
+    private static final short SW_REFERENCE_DATA_NOT_FOUND = (short) 0x6A88;
+    // Success
+    private static final short SW_SUCCESS = (short) 0x9000;
 
     // State machines
     private AppletStateMachine appletFSM;
     private TransientStateMachine transientFSM;
 
     // RAM buffer
+    private static final short RAM_BUFFER_SIZE = 256;
     private byte ramBuffer[];
 
     private static final short SECURITY_LEVEL_MASK = 0x7F;
@@ -104,8 +138,22 @@ public class AppletCharon extends Applet {
      */
     @Override
     public boolean select() {
-        // Initialize state machines
         secureChannel = null;
+        // Reset certificate public key to null (CLEAR_ON_DESELECT only resets value to
+        // 0)
+        if (hwStaticCertificatePublicKey != null) {
+            hwStaticCertificatePublicKey = null;
+            JCSystem.requestObjectDeletion();
+        }
+        // Reset RAM pin buffer to null
+        if (pinManager != null) {
+            pinManager.clearPINFromRam();
+        }
+        transientFSM.setOnSelectState();
+        // Dedicate some RAM
+        if (ramBuffer == null) {
+            ramBuffer = JCSystem.makeTransientByteArray(RAM_BUFFER_SIZE, JCSystem.CLEAR_ON_DESELECT);
+        }
         return true;
     }
 
@@ -114,7 +162,12 @@ public class AppletCharon extends Applet {
      */
     public void deselect() {
         // Reset transient state machine
+        // TODO: Check if this is necessary... Should be redundant with the call to
+        // setOnSelectState in select()
         transientFSM.transition(TransientStateMachine.EVENT_APPLET_DESELECTED);
+        if (secureChannel != null) {
+            secureChannel.resetSecurity();
+        }
     }
 
     /**
@@ -160,17 +213,14 @@ public class AppletCharon extends Applet {
     protected AppletCharon(byte[] bArray, short bOffset, byte bLength) {
         // Create the FSM
         appletFSM = new AppletStateMachine();
-        transientFSM = new TransientStateMachine();
+        transientFSM = new TransientStateMachine(appletFSM);
         secureChannel = null;
-        pin = null;
+        pinManager = new PINManager();
+        seedManager = new SeedManager();
         crypto = new CryptoUtil();
         cardCertificate = new Certificate(CARD_CERT_ROLE);
         ephemeralCertificate = new EphemeralCertificate(crypto, CARD_CERT_ROLE);
         capsule = new CapsuleCBC();
-        // Dedicate some RAM
-        if (ramBuffer == null) {
-            ramBuffer = JCSystem.makeTransientByteArray((short) 256, JCSystem.CLEAR_ON_DESELECT);
-        }
 
         // Get the serial number from the install data
         getSerialNumberFromInstallData(bArray, bOffset);
@@ -197,14 +247,17 @@ public class AppletCharon extends Applet {
             if (secureChannel == null) {
                 ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
             }
-            outLength = secureChannel.processSecurity(apdu);
-            apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, outLength);
+            try {
+                outLength = secureChannel.processSecurity(apdu);
+                apdu.setOutgoingAndSend(ISO7816.OFFSET_CDATA, outLength);
+            } catch (Exception e) {
+                ISOException.throwIt((short) 0xBEAF);
+            }
             break;
         default:
             ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
             break;
         }
-
     }
 
     /**
@@ -219,8 +272,8 @@ public class AppletCharon extends Applet {
         if ((securityLevel & SecureChannel.AUTHENTICATED) != (short) SecureChannel.AUTHENTICATED) {
             return false;
         }
-        if ((securityLevel & SECURITY_LEVEL_MASK) != (short) (SecureChannel.C_DECRYPTION | SecureChannel.C_MAC
-                | SecureChannel.R_ENCRYPTION | SecureChannel.R_MAC)) {
+        if ((securityLevel & SECURITY_LEVEL_MASK) != (short) (SecureChannel.C_DECRYPTION | SecureChannel.C_MAC | SecureChannel.R_ENCRYPTION
+                | SecureChannel.R_MAC)) {
             return false;
         }
         return true;
@@ -294,13 +347,12 @@ public class AppletCharon extends Applet {
      *
      * return: none
      */
-    private void setIssuerKey(byte[] buffer) {
+    private short setIssuerKey(byte[] buffer) {
         if (issuerKey == null) {
-            issuerKey = JCSystem.makeTransientByteArray((short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN,
-                    JCSystem.CLEAR_ON_DESELECT);
+            issuerKey = JCSystem.makeTransientByteArray((short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN, JCSystem.CLEAR_ON_DESELECT);
         }
-        Util.arrayCopy(buffer, (short) ISO7816.OFFSET_CDATA, issuerKey, (short) 0,
-                (short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN);
+        Util.arrayCopy(buffer, (short) ISO7816.OFFSET_CDATA, issuerKey, (short) 0, (short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN);
+        return 0;
     }
 
     /**
@@ -323,11 +375,15 @@ public class AppletCharon extends Applet {
      * signature
      */
     private short getPublicKey(byte[] buffer) {
+        // Check FSM states
+        if (ramBuffer[0] != AppletStateMachine.STATE_FABRICATION || ramBuffer[1] != TransientStateMachine.STATE_IDLE) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+
         crypto.initCurve((byte) CryptoUtil.SECP256K1);
-        certificatePrivateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE,
-                crypto.getCurve().getCurveLength(), false);
-        certificatePublicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC,
-                crypto.getCurve().getCurveLength(), false);
+        certificatePrivateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, crypto.getCurve().getCurveLength(),
+                false);
+        certificatePublicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, crypto.getCurve().getCurveLength(), false);
         // Use ramBuffer for temporary data
         crypto.generateKeyPair(ramBuffer, (short) 0, certificatePrivateKey, certificatePublicKey);
         if (issuerKey == null) {
@@ -379,6 +435,11 @@ public class AppletCharon extends Applet {
      * return: none
      */
     private short setCertificate(byte[] buffer) {
+        // Check FSM states
+        if (ramBuffer[0] != AppletStateMachine.STATE_FABRICATION || ramBuffer[1] != TransientStateMachine.STATE_IDLE) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+
         cardCertificate.setBatchSerial(buffer, ISO7816.OFFSET_CDATA);
         short offset = ISO7816.OFFSET_CDATA + Certificate.BATCH_SERIAL_LEN;
         // buffer[offset] = issuer public key length
@@ -401,7 +462,9 @@ public class AppletCharon extends Applet {
         if (cardCertificate.verifySignature() != true) {
             ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         }
-
+        // Set FSM state
+        appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
+        transientFSM.transition(TransientStateMachine.EVENT_SET_CERTIFICATE);
         return 0;
     }
 
@@ -426,6 +489,12 @@ public class AppletCharon extends Applet {
      * getCardStaticCertificate and getCardEphemeralCertificate).
      */
     private short getCardCertificate(byte[] buffer) {
+        // Check FSM states
+        if ((ramBuffer[0] != AppletStateMachine.STATE_ATTESTED || ramBuffer[1] != TransientStateMachine.STATE_INITIALIZED)
+                && (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_LOCKED)) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+
         // Check P2 is 0
         if (buffer[ISO7816.OFFSET_P2] != 0) {
             ISOException.throwIt(ISO7816.SW_WRONG_P1P2);
@@ -442,6 +511,9 @@ public class AppletCharon extends Applet {
             // Check that no data is present
             if (buffer[ISO7816.OFFSET_LC] != 0) {
                 ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+            }
+            if (ephemeralCertificate.getHostChallenge(ramBuffer, (short) 0) == 0) {
+                ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
             }
             return getCardEphemeralCertificate(buffer);
         } else {
@@ -487,19 +559,33 @@ public class AppletCharon extends Applet {
      * return: none
      */
     private short validateHostCertificate(byte[] buffer) {
+        // Check FSM states
+        if ((ramBuffer[0] != AppletStateMachine.STATE_ATTESTED || ramBuffer[1] != TransientStateMachine.STATE_INITIALIZED)
+                && (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_LOCKED)) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+
+        short rDataLength = 0;
         // Check P2 is 0
         if (buffer[ISO7816.OFFSET_P2] != 0) {
-            ISOException.throwIt(ISO7816.SW_WRONG_P1P2);
+            ISOException.throwIt(SW_WRONG_P1P2);
         }
         // Check P1 = 0x00, get static certificate
         if (buffer[ISO7816.OFFSET_P1] == P1_VALIDATE_STATIC_CERTIFICATE) {
-            return validateHostStaticCertificate(buffer);
+            if (hwStaticCertificatePublicKey != null) {
+                ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+            }
+            rDataLength = validateHostStaticCertificate(buffer);
         } else if (buffer[ISO7816.OFFSET_P1] == P1_VALIDATE_EPHEMERAL_CERTIFICATE) {
-            return validateHostEphemeralCertificate(buffer);
+            if (hwStaticCertificatePublicKey == null) {
+                ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+            }
+            rDataLength = validateHostEphemeralCertificate(buffer);
+            transientFSM.transition(TransientStateMachine.EVENT_CERT_VALID);
         } else {
-            ISOException.throwIt(ISO7816.SW_WRONG_P1P2);
+            ISOException.throwIt(SW_WRONG_P1P2);
         }
-        return 0;
+        return rDataLength;
     }
 
     private short validateHostStaticCertificate(byte[] buffer) {
@@ -521,8 +607,7 @@ public class AppletCharon extends Applet {
         // Get HW issuer signature length
         byte hwCertSignatureLength = buffer[offset++];
         // Get Issuer public key and length, store it in ramBuffer
-        byte issuerPublicKeyLength = (byte) cardCertificate.getIssuerPublicKey(ramBuffer,
-                (short) (1 + hwSNLength + hwPubKeyLength));
+        byte issuerPublicKeyLength = (byte) cardCertificate.getIssuerPublicKey(ramBuffer, (short) (1 + hwSNLength + hwPubKeyLength));
         // Verify signature
         if (crypto.getCurveId() != CryptoUtil.SECP256K1) {
             crypto.initCurve((byte) CryptoUtil.SECP256K1);
@@ -534,11 +619,9 @@ public class AppletCharon extends Applet {
         } else {
             // Store the public key for later use
             if (hwStaticCertificatePublicKey == null) {
-                hwStaticCertificatePublicKey = JCSystem.makeTransientByteArray((short) hwPubKeyLength,
-                        JCSystem.CLEAR_ON_DESELECT);
+                hwStaticCertificatePublicKey = JCSystem.makeTransientByteArray((short) hwPubKeyLength, JCSystem.CLEAR_ON_DESELECT);
             }
-            Util.arrayCopyNonAtomic(ramBuffer, (short) (1 + hwSNLength), hwStaticCertificatePublicKey, (short) 0,
-                    hwPubKeyLength);
+            Util.arrayCopyNonAtomic(ramBuffer, (short) (1 + hwSNLength), hwStaticCertificatePublicKey, (short) 0, hwPubKeyLength);
         }
         return 0;
     }
@@ -556,8 +639,7 @@ public class AppletCharon extends Applet {
         short cardChallengeLength = ephemeralCertificate.getCardChallenge(ramBuffer, (short) (1 + hostChallengeLength));
         // Copy HW ephemeral public key to ramBuffer
         byte hwEphemeralPublicKeyLength = buffer[offset++];
-        Util.arrayCopy(buffer, offset, ramBuffer, (short) (1 + hostChallengeLength + cardChallengeLength),
-                hwEphemeralPublicKeyLength);
+        Util.arrayCopy(buffer, offset, ramBuffer, (short) (1 + hostChallengeLength + cardChallengeLength), hwEphemeralPublicKeyLength);
         offset += hwEphemeralPublicKeyLength;
         // Get HW signature length
         byte hwEphemeralCertSignatureLength = buffer[offset++];
@@ -572,10 +654,122 @@ public class AppletCharon extends Applet {
             ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         } else {
             // Generate encryption session key
-            capsule.generateSessionKeys(ramBuffer, (short) (1 + hostChallengeLength + cardChallengeLength),
-                    hwEphemeralPublicKeyLength, ephemeralCertificate.getPrivateKey());
+            capsule.generateSessionKeys(ramBuffer, (short) (1 + hostChallengeLength + cardChallengeLength), hwEphemeralPublicKeyLength,
+                    ephemeralCertificate.getPrivateKey());
         }
         return 0;
+    }
+
+    private short setPIN(byte[] buffer) {
+        // Check FSM states
+        if (ramBuffer[0] != AppletStateMachine.STATE_ATTESTED || ramBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        // Decrypt data
+        capsule.decryptData(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC], ramBuffer, (short) 0);
+        // Set PIN in transient memory
+        pinManager.createPIN(ramBuffer);
+        return 0;
+    }
+
+    private short verifyPIN(byte[] buffer) {
+        boolean pinVerified = false;
+        byte triesRemaining = 0;
+        // Check FSM states
+        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        // Decrypt data
+        capsule.decryptData(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC], ramBuffer, (short) 0);
+        // Verify PIN
+        pinVerified = pinManager.verifyPIN(ramBuffer);
+        if (!pinVerified) {
+            triesRemaining = pinManager.getTriesRemaining();
+            if (triesRemaining == 0) {
+                // Reset PIN, Seed and FSM
+                pinManager.resetPIN();
+                seedManager.clearSeed();
+                appletFSM.transition(AppletStateMachine.EVENT_PIN_TRY_LIMIT_EXCEEDED);
+                transientFSM.transition(TransientStateMachine.EVENT_PIN_TRY_LIMIT_EXCEEDED);
+                ISOException.throwIt(SW_AUTHENTICATION_BLOCKED);
+            } else {
+                ISOException.throwIt((short) (SW_PIN_COUNTER_CHANGED + triesRemaining));
+            }
+        }
+        // Set FSM state
+        transientFSM.transition(TransientStateMachine.EVENT_PIN_VERIFIED);
+        return 0;
+    }
+
+    private short changePIN(byte[] buffer) {
+        // Check FSM states
+        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        // Decrypt data
+        capsule.decryptData(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC], ramBuffer, (short) 0);
+        // Change PIN
+        pinManager.changePIN(ramBuffer);
+        return 0;
+    }
+
+    private short factoryReset(byte[] buffer, short dataLength) {
+        // Check FSM states
+        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        // Check data length
+        if (dataLength == 0 || buffer[ISO7816.OFFSET_LC] == 0) {
+            ISOException.throwIt(SW_MISSING_SCP_LEDGER);
+        }
+        if (buffer[ISO7816.OFFSET_LC] != dataLength || buffer[ISO7816.OFFSET_CDATA] != dataLength - 1) {
+            ISOException.throwIt(SW_WRONG_LENGTH);
+        }
+        // Check MAC
+        if (!capsule.checkMAC(buffer, (short) 0, (short) APDU_HEADER_SIZE, (short) buffer[ISO7816.OFFSET_CDATA],
+                (short) (ISO7816.OFFSET_CDATA + 1))) {
+            ISOException.throwIt(SW_INCORRECT_SCP_LEDGER);
+        }
+        // Reset PIN
+        pinManager.resetPIN();
+        // Clear seed
+        seedManager.clearSeed();
+        // Reset FSM states
+        appletFSM.transition(AppletStateMachine.EVENT_FACTORY_RESET);
+        transientFSM.transition(TransientStateMachine.EVENT_FACTORY_RESET);
+        return 0;
+    }
+
+    private short setSeed(byte[] buffer) {
+        // Check FSM states
+        if (ramBuffer[0] != AppletStateMachine.STATE_ATTESTED || ramBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        // Check PIN is set (meaning PIN value has been put in transient memory)
+        if (pinManager.getPINStatus() != PINManager.PIN_STATUS_SET) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        // Decrypt data
+        capsule.decryptData(buffer, ISO7816.OFFSET_CDATA, (short) (buffer[ISO7816.OFFSET_LC] & 0x00FF), ramBuffer, (short) 0);
+        // Set seed
+        seedManager.setSeed(ramBuffer);
+        // Activate PIN
+        pinManager.activatePIN();
+        // Set FSM state
+        appletFSM.transition(AppletStateMachine.EVENT_SET_SEED);
+        transientFSM.transition(TransientStateMachine.EVENT_PIN_VERIFIED);
+        return 0;
+    }
+
+    private short restoreSeed(byte[] buffer) {
+        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        // Restore seed to ramBuffer
+        byte seedLength = seedManager.restoreSeed(ramBuffer, (short) 1);
+        ramBuffer[0] = seedLength;
+        // Encrypt seed
+        return capsule.encryptData(ramBuffer, (short) 0, (short) ((seedLength + 1) & 0x00FF), buffer, (short) 0);
     }
 
     /**
@@ -599,8 +793,7 @@ public class AppletCharon extends Applet {
         }
 
         // To use the GP methods, the CLA must be 0x80 or 0x84
-        if ((buffer[ISO7816.OFFSET_CLA] == GP_CLA_INITIALIZE_UPDATE)
-                || (buffer[ISO7816.OFFSET_CLA] == GP_CLA_EXTERNAL_AUTHENTICATE)) {
+        if ((buffer[ISO7816.OFFSET_CLA] == GP_CLA_INITIALIZE_UPDATE) || (buffer[ISO7816.OFFSET_CLA] == GP_CLA_EXTERNAL_AUTHENTICATE)) {
             processGPCommand(apdu, buffer);
             return;
         }
@@ -616,63 +809,67 @@ public class AppletCharon extends Applet {
         }
 
         // Use GP API to unwrap data from secure channel.
-        if (cdatalength > 0) {
-            buffer[ISO7816.OFFSET_CLA] = GP_CLA_EXTERNAL_AUTHENTICATE;
-            cdatalength = secureChannel.unwrap(buffer, (short) 0, (short) (cdatalength + APDU_HEADER_SIZE));
+        try {
+            if (cdatalength > 0) {
+                buffer[ISO7816.OFFSET_CLA] = GP_CLA_EXTERNAL_AUTHENTICATE;
+                cdatalength = secureChannel.unwrap(buffer, (short) 0, (short) (cdatalength + APDU_HEADER_SIZE));
+            }
+        } catch (Exception e) {
+            ISOException.throwIt((short) 0xFEDE);
         }
 
         // Get current persistent state
         ramBuffer[0] = appletFSM.getCurrentState();
+        ramBuffer[1] = transientFSM.getCurrentState();
 
         switch (buffer[ISO7816.OFFSET_INS]) {
         case INS_GET_INFO:
             cdatalength = getInfo(buffer);
-            // Encrypt the response
-            cdatalength = capsule.encryptData(buffer, (short) 0, cdatalength, ramBuffer, (short) 0);
-            // Copy the encrypted data to the buffer
-            Util.arrayCopyNonAtomic(ramBuffer, (short) 0, buffer, (short) 0, cdatalength);
             break;
         case INS_SET_ISSUER_KEY:
-            setIssuerKey(buffer);
-            cdatalength = 0;
+            cdatalength = setIssuerKey(buffer);
             break;
         case INS_GET_PUBLIC_KEY:
-            if (ramBuffer[0] != AppletStateMachine.STATE_FABRICATION) {
-                ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
-            }
             cdatalength = getPublicKey(buffer);
             break;
         case INS_SET_CERTIFICATE:
-            if (ramBuffer[0] != AppletStateMachine.STATE_FABRICATION) {
-                ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
-            }
             cdatalength = setCertificate(buffer);
-            appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
             break;
         case INS_GET_CARD_CERTIFICATE:
-//            getCardCertificate(buffer);
-            // TODO : check FSM / Transient FSM states (here or inside function)
             cdatalength = getCardCertificate(buffer);
             break;
         case INS_VALIDATE_HOST_CERTIFICATE:
-            // TODO : check FSM / Transient FSM states (here or inside function)
             cdatalength = validateHostCertificate(buffer);
             break;
-        case INS_CREATE_PIN:
-//            createPIN(buffer);
+        case INS_SET_PIN:
+            cdatalength = setPIN(buffer);
             break;
         case INS_VERIFY_PIN:
-//            verifyPIN(buffer);
+            cdatalength = verifyPIN(buffer);
             break;
-        case INS_CHANGE_PIN:
-//            changePIN(buffer);
+        case INS_PIN_CHANGE:
+            cdatalength = changePIN(buffer);
             break;
-        case INS_CREATE_BACKUP:
-//            createBackup(buffer);
+        case INS_SET_SEED:
+            cdatalength = setSeed(buffer);
             break;
-        case INS_RESTORE_BACKUP:
-//            restoreBackup(buffer);
+        case INS_RESTORE_SEED:
+            cdatalength = restoreSeed(buffer);
             break;
+        case INS_VERIFY_SEED:
+            if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+                ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+            }
+            // TODO: Implement seed verification
+            break;
+        case INS_SET_DATA:
+            if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+                ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+            }
+            // setData(buffer);
+            break;
+        case INS_FACTORY_RESET:
+            cdatalength = factoryReset(buffer, cdatalength);
         default:
             ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
         }
@@ -686,4 +883,5 @@ public class AppletCharon extends Applet {
         // Send the response
         apdu.setOutgoingAndSend((short) 0, cdatalength);
     }
+
 }

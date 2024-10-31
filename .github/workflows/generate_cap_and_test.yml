@@ -1,0 +1,60 @@
+name: Generate applet CAP and run python tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - main
+      - develop
+  pull_request:
+
+jobs:
+  generate-and-test:
+    runs-on: ubuntu-22.04
+    name: Generate CAP and run tests
+
+    container:
+      image: docker.io/alexisgrojean/applet-builder:latest
+      credentials:
+        username: ${{ secrets.DOCKER_USER }}
+        password: ${{ secrets.DOCKER_TOKEN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Generate CAP
+        run: |
+            export APPLET_AID="A000000002"
+            ./manage_applet.sh -p "/home/devuser" -a $APPLET_AID
+    
+      - name: Setup PDM
+        uses: pdm-project/setup-pdm@v4
+
+      - name: Setup tests environment
+        run: |
+            export GH_USER=${{ secrets.GH_USER }}
+            export GH_TOKEN=${{ secrets.GH_TOKEN }}
+            pdm lock -G github-actions
+            pdm install -G github-actions
+            # TODO: update where ledger-pluto looks for the gp.jar
+            cp /home/devuser/gp.jar .
+        shell: bash
+      
+      - name: Run tests
+        run: |
+            # Start the pcscd service and the java card simulator
+            pcscd
+            /home/devuser/java_card_simulator/runtime/bin/jcsl -log_level=finest > $HOME/sim.log 2>&1 &
+            # Activate the virtual environment and run the tests
+            source .venv/bin/activate
+            pytest
+        shell: bash
+    
+      - name: Save simulator logs
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: sim-logs
+          path: $HOME/sim.log

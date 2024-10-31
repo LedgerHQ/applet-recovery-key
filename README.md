@@ -17,7 +17,7 @@ Instructions for Debian like linux distributions.
 
 2. Login to Ledger Orange docker registry.
 
-    :information_source: You might need to create a registry token to authenticate, go to your [Orange Github](https://git.orange.ledgerlabs.net/) account, then `Settings > Developer settings > Personal access tokens > Tokens (classic)`, use the `Generate new token` button and choose the following scope `read:packages`
+    :information_source: You will a valid registry token to authenticate, go to your [Orange Github](https://git.orange.ledgerlabs.net/) account, then `Settings > Developer settings > Personal access tokens > Tokens (classic)`, use the `Generate new token` button and choose the following scope `read:packages`
 
     ```bash
     docker login containers.git.orange.ledgerlabs.net -u <user name>
@@ -46,3 +46,60 @@ The easiest way to run the functional tests is to use the `manage_applet.sh` scr
 #### Load the applet on a real card
 
 **TODO** : write this section.
+
+## `manage_applet.sh` script
+
+The `manage_applet.sh` script assists in building (generating a CAP file), cleaning, and testing the Charon applet, either locally or in a Docker container. It includes options for dependency path customization, AID setting, and running functional tests (requiring GitHub credentials for cloning ledger-pluto)
+
+### Usage
+
+Run the script with one or more options to specify the desired operations:
+
+```bash
+./generate_cap.sh [options]
+```
+
+#### Options
+
+| Option                           | Description                                                                                          |
+|----------------------------------|------------------------------------------------------------------------------------------------------|
+| `-d`, `--docker`                 | Run the commands inside a Docker container.                                                          |
+| `-a`, `--aid AID`                | Set a custom AID for the applet. Default is \`A000000002\`.                                          |
+| `-c`, `--clean`                  | Clean up build artifacts (bin and deliverables directories).                                         |
+| `-p`, `--path PATH`              | Specify the dependencies path for local generation.                                                  |
+| `-t`, `--tests GH_USER GH_TOKEN` | Run functional tests (GitHub credentials required in Docker mode).                                   |
+| `-h`, `--help`                   | Display this help message.                                                                           |
+
+> **Note**: Running the script without options will generate the CAP file locally.
+
+### Examples
+
+- **Generate the CAP file locally**:
+
+    ```bash
+    ./generate_cap.sh
+    ```
+
+- **Generate the CAP file with a custom AID**:
+
+    ```bash
+    ./generate_cap.sh -a A000000003
+    ```
+
+- **Generate the CAP file using Docker**:
+
+    ```bash
+    ./generate_cap.sh -d
+    ```
+
+- **Run functional tests in Docker** (requires GitHub credentials):
+
+    ```bash
+    ./generate_cap.sh -d -t YOUR_GITHUB_USERNAME YOUR_GITHUB_TOKEN
+    ```
+
+- **Clean build artifacts**:
+
+    ```bash
+    ./generate_cap.sh -c
+    ```

@@ -144,52 +144,6 @@ check_dependencies() {
     green "All dependencies checked successfully"
 }
 
-# Function to install dependencies
-# install_dependencies()
-# {
-#     yellow "Installing dependencies..."
-    
-#     # Install JDK 17
-#     if [ ! -d $JAVA_HOME ]; then
-#         yellow "Downloading JDK 17..."
-#         if ! curl -L -o /tmp/jdk-17.tar.gz https://download.oracle.com/java/17/latest/jdk-17_linux-x64_bin.tar.gz; then
-#             red "Error: Failed to download JDK 17"
-#             exit 1
-#         fi
-        
-#         yellow "Extracting JDK 17..."
-#         if ! tar -xzf /tmp/jdk-17.tar.gz -C /usr/java; then
-#             red "Error: Failed to extract JDK 17"
-#             rm /tmp/jdk-17.tar.gz
-#             exit 1
-#         fi
-#         rm /tmp/jdk-17.tar.gz
-#     else
-#         yellow "JDK 17 already installed, skipping download..."
-#     fi
-
-#     # Install JavaCard DevKit
-#     if [ ! -d $JCDK_PATH ]; then
-#         yellow "Downloading JavaCard DevKit..."
-#         if ! curl -L -o /tmp/jcdk.zip https://www.oracle.com/java/technologies/javacard-sdk-downloads.html; then
-#             red "Error: Failed to download JavaCard DevKit"
-#             exit 1
-#         fi
-        
-#         yellow "Extracting JavaCard DevKit..."
-#         if ! unzip /tmp/jcdk.zip -d $DEPS_PATH; then
-#             red "Error: Failed to extract JavaCard DevKit"
-#             rm /tmp/jcdk.zip
-#             exit 1
-#         fi
-#         rm /tmp/jcdk.zip
-#     else
-#         yellow "JavaCard DevKit already installed, skipping download..."
-#     fi
-
-#     green "All dependencies installed successfully"
-# }
-
 # Function to handle docker operations
 setup_docker_and_generate_cap() {
     yellow "Checking docker installation..."
@@ -289,12 +243,12 @@ setup_docker_and_run_tests()
         fi
     fi
 
-    # yellow "Pulling docker image..."
-    # if ! docker pull $DOCKER_IMAGE; then
-    #     red "Error: Failed to pull docker image"
-    #     red "Please ensure you are connected to the Ledger Orange VPN and logged into the orange docker registry"
-    #     exit 1
-    # fi
+    yellow "Pulling docker image..."
+    if ! docker pull $DOCKER_IMAGE; then
+        red "Error: Failed to pull docker image"
+        red "Please ensure you are connected to the Ledger Orange VPN and logged into the orange docker registry"
+        exit 1
+    fi
     
     yellow "Run tests in container..."
     run_in_docker "$(declare -f check_dependencies) && $(declare -f run_tests) && run_tests true $GH_USER $GH_TOKEN" "Run tests in container failed"
@@ -347,10 +301,7 @@ run_tests()
         sudo systemctl stop pcscd
         pcscd
     fi
-    # if ! pgrep -x "pcscd" > /dev/null; then
-    #     yellow "Starting pcscd service..."
-    #     pcscd
-    # fi
+
     # Run the JavaCard simulator
     if ! pgrep -x "jcsl" > /dev/null; then
         yellow "Starting JavaCard simulator..."

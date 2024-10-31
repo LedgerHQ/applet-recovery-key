@@ -17,7 +17,7 @@ Instructions for Debian like linux distributions.
 
 2. Login to Ledger Orange docker registry.
 
-    :information_source: You will a valid registry token to authenticate, go to your [Orange Github](https://git.orange.ledgerlabs.net/) account, then `Settings > Developer settings > Personal access tokens > Tokens (classic)`, use the `Generate new token` button and choose the following scope `read:packages`
+    :information_source: You will need a valid registry token to authenticate, go to your [Orange Github](https://git.orange.ledgerlabs.net/) account, then `Settings > Developer settings > Personal access tokens > Tokens (classic)`, use the `Generate new token` button and choose the following scope `read:packages`
 
     ```bash
     docker login containers.git.orange.ledgerlabs.net -u <user name>
@@ -56,7 +56,7 @@ The `manage_applet.sh` script assists in building (generating a CAP file), clean
 Run the script with one or more options to specify the desired operations:
 
 ```bash
-./generate_cap.sh [options]
+./manage_applet.sh [options]
 ```
 
 #### Options
@@ -77,29 +77,29 @@ Run the script with one or more options to specify the desired operations:
 - **Generate the CAP file locally**:
 
     ```bash
-    ./generate_cap.sh
+    ./manage_applet.sh
     ```
 
 - **Generate the CAP file with a custom AID**:
 
     ```bash
-    ./generate_cap.sh -a A000000003
+    ./manage_applet.sh -a A000000003
     ```
 
 - **Generate the CAP file using Docker**:
 
     ```bash
-    ./generate_cap.sh -d
+    ./manage_applet.sh -d
     ```
 
 - **Run functional tests in Docker** (requires GitHub credentials):
 
     ```bash
-    ./generate_cap.sh -d -t YOUR_GITHUB_USERNAME YOUR_GITHUB_TOKEN
+    ./manage_applet.sh -d -t YOUR_GITHUB_USERNAME YOUR_GITHUB_TOKEN
     ```
 
 - **Clean build artifacts**:
 
     ```bash
-    ./generate_cap.sh -c
+    ./manage_applet.sh -c
     ```

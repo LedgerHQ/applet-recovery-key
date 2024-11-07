@@ -1,5 +1,8 @@
 package com.ledger.appletcharon;
 
+import org.globalplatform.upgrade.Element;
+import org.globalplatform.upgrade.UpgradeManager;
+
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
@@ -12,7 +15,7 @@ public class SeedManager {
     private static final short SEED_DATA_LENGTH_OFFSET = 0;
     private static final short SEED_DATA_OFFSET = 1;
     private static final short SEED_LENGTH = 32; // 256 bits = 32 bytes
-    private AESKey seedKey;
+    protected AESKey seedKey;
 
     public SeedManager() {
         // Initialize the HMAC key object with the correct length
@@ -54,5 +57,21 @@ public class SeedManager {
         seedKey.clearKey();
         seedKey = null;
         JCSystem.requestObjectDeletion();
+    }
+
+    static Element save(SeedManager seedManager) {
+        if (seedManager == null || seedManager.seedKey == null) {
+            return null;
+        }
+        return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 0, (short) 1).write(seedManager.seedKey);
+    }
+
+    static SeedManager restore(Element element) {
+        if (element == null) {
+            return null;
+        }
+        SeedManager seedManager = new SeedManager();
+        seedManager.seedKey = (AESKey) element.readObject();
+        return seedManager;
     }
 }

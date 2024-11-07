@@ -5,6 +5,10 @@
 
 
 package com.ledger.appletcharon;
+
+import org.globalplatform.upgrade.Element;
+import org.globalplatform.upgrade.UpgradeManager;
+
 import javacard.framework.Util;
 import javacard.security.ECPublicKey;
 import javacard.security.KeyBuilder;
@@ -22,15 +26,15 @@ public class Certificate {
     // Card serial number length
     private short serialNumberLength;
     // Card public key
-    private byte[] publicKey = null;
+    protected byte[] publicKey = null;
     // Card public key length
     private short publicKeyLength;
     // Issuer public key
-    private byte[] issuerPublicKey = null;
+    protected byte[] issuerPublicKey = null;
     // Issuer public key length
     private short issuerPublicKeyLength;
     // Issuer signature
-    private byte[] signature = null;
+    protected byte[] signature = null;
     // Issuer signature length
     private short signatureLength;
 
@@ -190,5 +194,31 @@ public class Certificate {
             eraseAll();
         }
         return isVerified;
+    }
+
+    static Element save(Certificate certificate) {
+        if (certificate == null || certificate.signature == null) {
+            return null;
+        }
+        short objectCount = 4; // serialNumber, publicKey, signature, issuerPublicKey
+        return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 1, objectCount).write(certificate.role[0])
+                .write(certificate.serialNumber).write(certificate.publicKey).write(certificate.signature)
+                .write(certificate.issuerPublicKey);
+    }
+
+    static Certificate restore(Element element) {
+        if (element == null) {
+            return null;
+        }
+        Certificate cert = new Certificate(element.readByte());
+        cert.serialNumber = (byte[]) element.readObject();
+        cert.serialNumberLength = (short) cert.serialNumber.length;
+        cert.publicKey = (byte[]) element.readObject();
+        cert.publicKeyLength = (short) cert.publicKey.length;
+        cert.signature = (byte[]) element.readObject();
+        cert.signatureLength = (short) cert.signature.length;
+        cert.issuerPublicKey = (byte[]) element.readObject();
+        cert.issuerPublicKeyLength = (short) cert.issuerPublicKey.length;
+        return cert;
     }
 }

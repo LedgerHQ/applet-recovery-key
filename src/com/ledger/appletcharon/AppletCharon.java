@@ -54,14 +54,17 @@ public class AppletCharon extends Applet {
     private EphemeralCertificate ephemeralCertificate;
     private CapsuleCBC capsule;
 
-    // Seed storage object
-    private ECPrivateKey seedBackup;
+    // Get status command TLV fields tags
+    private static final byte TARGET_ID_TAG = (byte) 0x01;
+    private static final byte SERIAL_NUMBER_TAG = (byte) 0x02;
+    private static final byte APPLET_VERSION_TAG = (byte) 0x03;
+    private static final byte APPLET_FSM_STATE_TAG = (byte) 0x04;
+    private static final byte TRANSIENT_FSM_STATE_TAG = (byte) 0x05;
 
     private static final byte APDU_HEADER_SIZE = 5;
     private static final byte LEDGER_COMMAND_CLA = (byte) 0x08;
 
     // Instruction codes
-    private static final byte INS_GET_INFO = (byte) 0x01;
     private static final byte INS_SET_ISSUER_KEY = (byte) 0x02;
     private static final byte INS_GET_STATUS = (byte) 0xF2;
     private static final byte INS_GET_DATA = (byte) 0xCA;
@@ -281,6 +284,22 @@ public class AppletCharon extends Applet {
     }
 
     /**
+     * Constructs a single TLV field with the given tag and value.
+     *
+     * @param tlvFields the byte array to write the TLV field to
+     * @param offset    the starting offset to write the TLV field
+     * @param tag       the tag byte for the TLV field
+     * @param value     the value bytes for the TLV field
+     * @return the new offset after writing the TLV field
+     */
+    public static short buildTLVField(byte[] tlvFields, short offset, byte tag, byte[] value) {
+        tlvFields[offset++] = tag;
+        tlvFields[offset++] = (byte) value.length;
+        Util.arrayCopyNonAtomic(value, (short) 0, tlvFields, offset, (short) value.length);
+        return (short) (offset + value.length);
+    }
+
+    /**
      * Get general information about the Applet and card itself as well as
      * information about the status of current session.
      * 
@@ -300,17 +319,23 @@ public class AppletCharon extends Applet {
      * (1b) | target id (4b) | IC serial number (4b) | FSM State (1b) | transient
      * FSM State (1b)]
      */
-    private short getInfo(byte[] buffer) {
+    private short getStatus(byte[] buffer) {
 
         short offset = 0;
+        offset = buildTLVField(buffer, offset, APPLET_VERSION_TAG,
+                new byte[] { APPLET_MAJOR_VERSION, APPLET_MINOR_VERSION, APPLET_PATCH_VERSION });
+        offset = buildTLVField(buffer, offset, TARGET_ID_TAG, CARD_TARGET_ID);
+        offset = buildTLVField(buffer, offset, SERIAL_NUMBER_TAG, serialNumber);
+        offset = buildTLVField(buffer, offset, APPLET_FSM_STATE_TAG, new byte[] { appletFSM.getCurrentState() });
+        offset = buildTLVField(buffer, offset, TRANSIENT_FSM_STATE_TAG, new byte[] { transientFSM.getCurrentState() });
 
-        // Set the version (3 bytes)
-        buffer[offset++] = APPLET_MAJOR_VERSION;
-        buffer[offset++] = APPLET_MINOR_VERSION;
-        buffer[offset++] = APPLET_PATCH_VERSION;
-
-        // Set the role
-        buffer[offset++] = CARD_CERT_ROLE;
+//        // Set the version (3 bytes)
+//        buffer[offset++] = APPLET_MAJOR_VERSION;
+//        buffer[offset++] = APPLET_MINOR_VERSION;
+//        buffer[offset++] = APPLET_PATCH_VERSION;
+//
+//        // Set the role
+//        buffer[offset++] = CARD_CERT_ROLE;
 
         // Set target ID
         Util.arrayCopyNonAtomic(CARD_TARGET_ID, (short) 0, buffer, offset, (short) CARD_TARGET_ID.length);
@@ -824,8 +849,8 @@ public class AppletCharon extends Applet {
         ramBuffer[1] = transientFSM.getCurrentState();
 
         switch (buffer[ISO7816.OFFSET_INS]) {
-        case INS_GET_INFO:
-            cdatalength = getInfo(buffer);
+        case INS_GET_STATUS:
+            cdatalength = getStatus(buffer);
             break;
         case INS_SET_ISSUER_KEY:
             cdatalength = setIssuerKey(buffer);

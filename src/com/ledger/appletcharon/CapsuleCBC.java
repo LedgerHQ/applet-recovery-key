@@ -96,51 +96,98 @@ public class CapsuleCBC {
             iv = JCSystem.makeTransientByteArray(AES_CBC_IV_LENGTH, JCSystem.CLEAR_ON_DESELECT);
         }
         randomData.nextBytes(iv, (short) 0, (short) iv.length);
-        // Prepend IV to the ciphertext
-        Util.arrayCopy(iv, (short) 0, ciphertext, ciphertextOffset, AES_CBC_IV_LENGTH);
+
+        short currentOffset = ciphertextOffset;
+        // Write IV length
+        ciphertext[currentOffset++] = (byte) iv.length;
+
+        // Write IV
+        Util.arrayCopy(iv, (short) 0, ciphertext, currentOffset, AES_CBC_IV_LENGTH);
+        currentOffset += AES_CBC_IV_LENGTH;
+
         // Initialize AES cipher
         cipher.init(encSessionKey, Cipher.MODE_ENCRYPT, iv, (short) 0, (short) AES_CBC_IV_LENGTH);
+
+        // Reserve space for cipher length
+        short cipherLengthOffset = currentOffset;
+        currentOffset++;
+
+        // Store start of cipher data position
+        short cipherDataOffset = currentOffset;
+
         // Encrypt plaintext
-        short outLength = cipher.doFinal(plaintext, plaintextOffset, plaintextLength, ciphertext,
-                (short) (ciphertextOffset + AES_CBC_IV_LENGTH));
+        short cipherLength = cipher.doFinal(plaintext, plaintextOffset, plaintextLength, ciphertext, currentOffset);
+
+        // Write cipher length
+        ciphertext[cipherLengthOffset] = (byte) cipherLength;
+        currentOffset += cipherLength;
+
         // Initialize HMAC key
         hmac.init(macSessionKey, Signature.MODE_SIGN);
-        // Compute HMAC
-        hmac.sign(ciphertext, (short) (ciphertextOffset + AES_CBC_IV_LENGTH), (short) outLength, ciphertext,
-                (short) (ciphertextOffset + AES_CBC_IV_LENGTH + outLength));
-        return (short) (outLength + AES_CBC_IV_LENGTH + HMAC_LENGTH);
+
+        // Compute HMAC on cipher part only
+        short macLength = hmac.sign(ciphertext, cipherDataOffset, cipherLength, ciphertext, (short) (currentOffset + 1));
+
+        // Write MAC length (using actual length from sign operation)
+        ciphertext[currentOffset++] = (byte) macLength;
+
+        // Return total length
+        return (short) (currentOffset - ciphertextOffset + macLength);
     }
 
     protected short decryptData(byte[] inData, short inOffset, short inDataLength, byte[] plaintext, short plaintextOffset) {
-        // Get IV from the first block of the ciphertext
+        short currentOffset = inOffset;
+
+        // Get and verify IV length
+        byte ivLength = inData[currentOffset++];
+        if (ivLength != AES_CBC_IV_LENGTH) {
+            ISOException.throwIt((short) com.ledger.appletcharon.AppletCharon.SW_INCORRECT_SCP_LEDGER);
+        }
+
+        // Get IV
         if (iv == null) {
             iv = JCSystem.makeTransientByteArray(AES_CBC_IV_LENGTH, JCSystem.CLEAR_ON_DESELECT);
         }
-        Util.arrayCopy(inData, inOffset, iv, (short) 0, AES_CBC_IV_LENGTH);
+        Util.arrayCopy(inData, currentOffset, iv, (short) 0, AES_CBC_IV_LENGTH);
+        currentOffset += AES_CBC_IV_LENGTH;
+
+        // Get cipher length
+        short cipherLength = (short) (inData[currentOffset++] & 0xFF);
+
+        // Get cipher data offset
+        short cipherOffset = currentOffset;
+        currentOffset += cipherLength;
+
+        // Get and verify MAC length
+        byte macLength = inData[currentOffset++];
+
+        // Initialize HMAC key and verify MAC (on cipher part only)
+        hmac.init(macSessionKey, Signature.MODE_VERIFY);
+        boolean validMac = hmac.verify(inData, cipherOffset, cipherLength, inData, currentOffset, macLength);
+        if (!validMac) {
+            ISOException.throwIt((short) com.ledger.appletcharon.AppletCharon.SW_INCORRECT_SCP_LEDGER);
+        }
+
         // Initialize AES cipher
         cipher.init(encSessionKey, Cipher.MODE_DECRYPT, iv, (short) 0, AES_CBC_IV_LENGTH);
+
         // Decrypt ciphertext
         short plaintextLength = 0;
         try {
-            plaintextLength = cipher.doFinal(inData, (short) (inOffset + AES_CBC_IV_LENGTH),
-                    (short) (inDataLength - AES_CBC_IV_LENGTH - HMAC_LENGTH), plaintext, plaintextOffset);
+            plaintextLength = cipher.doFinal(inData, cipherOffset, cipherLength, plaintext, plaintextOffset);
         } catch (Exception e) {
             ISOException.throwIt((short) com.ledger.appletcharon.AppletCharon.SW_INCORRECT_SCP_LEDGER);
         }
-        // Initialize HMAC key
-        hmac.init(macSessionKey, Signature.MODE_VERIFY);
-        // Verify HMAC
-        if (hmac.verify(inData, (short) (inOffset + AES_CBC_IV_LENGTH), (short) (inDataLength - AES_CBC_IV_LENGTH - HMAC_LENGTH), inData,
-                (short) (inOffset + inDataLength - HMAC_LENGTH), HMAC_LENGTH) == false) {
-            ISOException.throwIt((short) com.ledger.appletcharon.AppletCharon.SW_INCORRECT_SCP_LEDGER);
-        }
+
         return plaintextLength;
     }
 
-    protected boolean checkMAC(byte[] inData, short inOffset, short inDataLength, short inMACLength, short inMACOffset) {
+    protected boolean checkMAC(byte[] inData, short inOffset, short inDataLength, short inMACOffset) {
+        // Get MAC length
+        short macLength = (short) (inData[inMACOffset] & 0xFF);
         // Initialize HMAC key
         hmac.init(macSessionKey, Signature.MODE_VERIFY);
         // Verify HMAC
-        return hmac.verify(inData, inOffset, inDataLength, inData, inMACOffset, inMACLength);
+        return hmac.verify(inData, inOffset, inDataLength, inData, (short) (inMACOffset + 1), macLength);
     }
 }

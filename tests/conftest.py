@@ -27,6 +27,7 @@ CAP_FILE = (
 )
 INSTALL_PARAMS = "DEADBEEF"
 ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED = "Status Word: 0x6985"
+SEED_LEN = 32
 
 logger = logging.getLogger()
 

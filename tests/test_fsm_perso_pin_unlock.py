@@ -23,6 +23,7 @@ from .conftest import (
     ENC_KEY,
     MAC_KEY,
     AID,
+    SEED_LEN,
 )
 
 # from ledger_pluto.command_sender import GPCommandSender
@@ -36,7 +37,7 @@ def configure_client_and_check_state(client):
     client.validate_hw_ephemeral_certificate()
     pin_digits = bytes([0x01, 0x02, 0x03, 0x04])
     client.verify_pin(pin_digits)
-    infos = client.get_infos()
+    infos = client.get_status()
     assert infos.fsm_state == "User_Personalized"
     assert infos.transient_fsm_state == "Pin_Unlocked"
 
@@ -62,7 +63,7 @@ def setup_applet():
     client.validate_hw_ephemeral_certificate()
     pin_digits = bytes([0x01, 0x02, 0x03, 0x04])
     client.set_pin(pin_digits)
-    seed = os.urandom(64)
+    seed = os.urandom(SEED_LEN)
     client.set_seed(seed)
     connection.disconnect()
 
@@ -70,7 +71,7 @@ def setup_applet():
 # In User Personalized mode, after authentication and after PIN verification, 'GET STATUS' is supported and should return 0x9000
 def test_fsm_perso_pin_unlock_get_status(client):
     logger.info("CHA_STATE_UP_MGMT_OK_01")
-    # This function calls client.get_infos() which verifies that GET STATUS returns 0x9000
+    # This function calls client.get_status() which verifies that GET STATUS returns 0x9000
     configure_client_and_check_state(client)
 
 
@@ -170,7 +171,7 @@ def test_fsm_perso_pin_unlock_unauthorized_cmds(client):
         client.verify_pin(pin_digits)
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
-    dummy_seed = os.urandom(64)
+    dummy_seed = os.urandom(SEED_LEN)
     with pytest.raises(AssertionError) as e:
         client.set_seed(dummy_seed)
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED

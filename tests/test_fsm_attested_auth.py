@@ -8,6 +8,7 @@ from .conftest import (
     TEST_AUTH_PRIV_KEY,
     TEST_ISSUER_PRIV_KEY,
     ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED,
+    SEED_LEN,
 )
 
 # from ledger_pluto.command_sender import GPCommandSender
@@ -19,7 +20,7 @@ def configure_client_and_check_state(client):
     client.get_card_ephemeral_certificate_and_verify()
     client.validate_hw_static_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
     client.validate_hw_ephemeral_certificate()
-    infos = client.get_infos()
+    infos = client.get_status()
     assert infos.fsm_state == "Attested"
     assert infos.transient_fsm_state == "Authenticated"
 
@@ -35,7 +36,7 @@ def test_fsm_attested_auth_get_status(client):
     client.get_card_ephemeral_certificate_and_verify()
     client.validate_hw_static_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
     client.validate_hw_ephemeral_certificate()
-    infos = client.get_infos()
+    infos = client.get_status()
     assert infos.fsm_state == "Attested"
     assert infos.transient_fsm_state == "Authenticated"
 
@@ -135,5 +136,5 @@ def test_fsm_attested_auth_set_seed(client):
     configure_client_and_check_state(client)
     pin_digits = bytes([0x01, 0x02, 0x03, 0x04])
     client.set_pin(pin_digits)
-    seed = os.urandom(64)
+    seed = os.urandom(SEED_LEN)
     client.set_seed(seed)

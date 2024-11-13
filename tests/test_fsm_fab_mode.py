@@ -8,6 +8,7 @@ from .conftest import (
     TEST_AUTH_PRIV_KEY,
     TEST_ISSUER_PRIV_KEY,
     ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED,
+    SEED_LEN,
 )
 
 # from ledger_pluto.command_sender import GPCommandSender
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def check_applet_state(client):
-    infos = client.get_infos()
+    infos = client.get_status()
     assert infos.fsm_state == "Fabrication"
     assert infos.transient_fsm_state == "Idle"
 
@@ -30,7 +31,7 @@ def configure_client_and_check_state(client):
 @pytest.mark.order(1)
 def test_fsm_fab_get_status(client):
     logger.info("CHA_STATE_FAB_OK_01")
-    # This function calls client.get_infos() which verifies that GET STATUS returns 0x9000
+    # This function calls client.get_status() which verifies that GET STATUS returns 0x9000
     check_applet_state(client)
 
 
@@ -66,7 +67,7 @@ def test_fsm_fab_unauthorized_cmds(client):
     # can send the commands we want to test)
     dummy_priv_key = PrivateKey()
     dummy_pub_key = dummy_priv_key.pubkey.serialize(compressed=False)
-    dummy_seed = os.urandom(64)
+    dummy_seed = os.urandom(SEED_LEN)
     logger.info("CHA_STATE_FAB_FAIL_01")
 
     configure_client_and_check_state(client)

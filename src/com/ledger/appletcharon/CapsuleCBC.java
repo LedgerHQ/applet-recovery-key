@@ -37,8 +37,6 @@ public class CapsuleCBC {
     public CapsuleCBC() {
         ecdhAgreement = KeyAgreement.getInstance(KeyAgreement.ALG_EC_SVDP_DH_PLAIN_XY, false);
         messageDigest = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, false);
-        // Use unpadded AES CBC because other padding methods actually just
-        // do zero padding. We are doing our own ISO7816 padding.
         cipher = Cipher.getInstance(Cipher.ALG_AES_CBC_ISO9797_M2, false);
         hmac = Signature.getInstance(Signature.ALG_HMAC_SHA_256, false);
         randomData = RandomData.getInstance(RandomData.ALG_KEYGENERATION);

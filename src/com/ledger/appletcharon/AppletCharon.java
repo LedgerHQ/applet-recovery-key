@@ -278,8 +278,8 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
         transientFSM = new TransientStateMachine(appletFSM);
         secureChannel = null;
         pinManager = new PINManager();
-        seedManager = new SeedManager();
         crypto = new CryptoUtil();
+        seedManager = new SeedManager(crypto);
         cardCertificate = new Certificate(CARD_CERT_ROLE);
         ephemeralCertificate = new EphemeralCertificate(crypto, CARD_CERT_ROLE);
         capsule = new CapsuleCBC();
@@ -907,6 +907,26 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
         return 0;
     }
 
+    private short verifySeed(byte[] buffer, short cdatalength) {
+        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        if (cdatalength == 0 || buffer[ISO7816.OFFSET_LC] == 0) {
+            ISOException.throwIt(SW_MISSING_SCP_LEDGER);
+        }
+        if (cdatalength != buffer[ISO7816.OFFSET_LC] + APDU_HEADER_SIZE) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        capsule.decryptData(buffer, ISO7816.OFFSET_CDATA, (short) (buffer[ISO7816.OFFSET_LC] & 0x00FF), ramBuffer, (short) 0);
+        short challengeLength = (short) (ramBuffer[0] & 0x00FF);
+        // Sign challenge
+        short signatureLength = seedManager.signChallenge(ramBuffer, (short) 1, challengeLength, ramBuffer, (short) (2 + challengeLength));
+        ramBuffer[(short) ((1 + challengeLength) & 0x00FF)] = (byte) signatureLength;
+        // Encrypt signature
+        return capsule.encryptData(ramBuffer, (short) ((challengeLength + 1) & 0x00FF), (short) ((signatureLength + 1) & 0x00FF), buffer,
+                (short) 0);
+    }
+
     /**
      * Processes an incoming APDU.
      * 
@@ -993,10 +1013,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
             cdatalength = restoreSeed(buffer);
             break;
         case INS_VERIFY_SEED:
-            if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
-                ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
-            }
-            // TODO: Implement seed verification
+            cdatalength = verifySeed(buffer, cdatalength);
             break;
         case INS_GET_DATA:
             cdatalength = getData(buffer, cdatalength);

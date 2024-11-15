@@ -8,6 +8,7 @@ from .conftest import (
     TEST_AUTH_PRIV_KEY,
     TEST_ISSUER_PRIV_KEY,
     ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED,
+    SEED_LEN,
 )
 
 # from ledger_pluto.command_sender import GPCommandSender
@@ -15,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def check_applet_state(client):
-    infos = client.get_infos()
+    infos = client.get_status()
     assert infos.fsm_state == "Attested"
     assert infos.transient_fsm_state == "Initialized"
 
@@ -27,7 +28,7 @@ def test_fsm_attested_no_auth_get_status(client):
     client.set_issuer_key(bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
     client.get_public_key_and_verify()
     client.set_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
-    # This function calls client.get_infos() which verifies that GET STATUS returns 0x9000
+    # This function calls client.get_status() which verifies that GET STATUS returns 0x9000
     check_applet_state(client)
 
 
@@ -66,7 +67,7 @@ def test_fsm_attest_no_auth_unauthorized_cmds(client):
     # can send the commands we want to test)
     dummy_priv_key = PrivateKey()
     dummy_pub_key = dummy_priv_key.pubkey.serialize(compressed=False)
-    dummy_seed = os.urandom(64)
+    dummy_seed = os.urandom(SEED_LEN)
 
     check_applet_state(client)
     client.card_serial_number = bytes([0x01, 0x02, 0x03, 0x04])

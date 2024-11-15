@@ -16,6 +16,7 @@ from .conftest import (
     ENC_KEY,
     MAC_KEY,
     AID,
+    SEED_LEN,
 )
 
 # from ledger_pluto.command_sender import GPCommandSender
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
 #     client.get_card_ephemeral_certificate_and_verify()
 #     client.validate_hw_static_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
 #     client.validate_hw_ephemeral_certificate()
-#     infos = client.get_infos()
+#     infos = client.get_status()
 #     assert infos.fsm_state == "Attested"
 #     assert infos.transient_fsm_state == "Pin_Locked"
 
@@ -53,13 +54,13 @@ def setup_applet():
     client.validate_hw_ephemeral_certificate()
     pin_digits = bytes([0x01, 0x02, 0x03, 0x04])
     client.set_pin(pin_digits)
-    seed = os.urandom(64)
+    seed = os.urandom(SEED_LEN)
     client.set_seed(seed)
     connection.disconnect()
 
 
 def check_applet_state(client):
-    infos = client.get_infos()
+    infos = client.get_status()
     assert infos.fsm_state == "User_Personalized"
     assert infos.transient_fsm_state == "Pin_Locked"
 
@@ -67,7 +68,7 @@ def check_applet_state(client):
 # In User Personalized mode and before authentication, 'GET STATUS' is supported and should return 0x9000
 def test_fsm_perso_pin_lock_get_status(client):
     logger.info("CHA_STATE_UP_LOCKED_OK_01")
-    # This function calls client.get_infos() which verifies that GET STATUS returns 0x9000
+    # This function calls client.get_status() which verifies that GET STATUS returns 0x9000
     check_applet_state(client)
 
 
@@ -102,7 +103,7 @@ def test_fsm_perso_pin_lock_unauthorized_cmds(client):
 
     dummy_priv_key = PrivateKey()
     dummy_pub_key = dummy_priv_key.pubkey.serialize(compressed=False)
-    dummy_seed = os.urandom(64)
+    dummy_seed = os.urandom(SEED_LEN)
 
     check_applet_state(client)
     client.card_serial_number = bytes([0x01, 0x02, 0x03, 0x04])

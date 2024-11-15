@@ -38,6 +38,9 @@ public class AppletCharon extends Applet {
     private static final byte CARD_TARGET_ID[] = { (byte) 0x33, (byte) 0x40, (byte) 0x00, (byte) 0x04 };
     private byte[] serialNumber;
     private static final byte SN_LENGTH = 4;
+    private byte[] cardName;
+    private static final byte MIN_CARD_NAME_LENGTH = 1;
+    private static final byte MAX_CARD_NAME_LENGTH = 32;
 
     private PINManager pinManager;
     private SeedManager seedManager;
@@ -54,14 +57,21 @@ public class AppletCharon extends Applet {
     private EphemeralCertificate ephemeralCertificate;
     private CapsuleCBC capsule;
 
-    // Seed storage object
-    private ECPrivateKey seedBackup;
+    // Get status command TLV fields tags
+    private static final byte GET_STATUS_TARGET_ID_TAG = (byte) 0x01;
+    private static final byte GET_STATUS_SERIAL_NUMBER_TAG = (byte) 0x02;
+    private static final byte GET_STATUS_APPLET_VERSION_TAG = (byte) 0x03;
+    private static final byte GET_STATUS_APPLET_FSM_STATE_TAG = (byte) 0x04;
+    private static final byte GET_STATUS_TRANSIENT_FSM_STATE_TAG = (byte) 0x05;
+
+    // Get data, set data commands TLV fields tags
+    private static final short DATA_PIN_TRY_COUNTER_TAG = (short) 0x9F17;
+    private static final short DATA_CARD_NAME_TAG = (short) 0x0066;
 
     private static final byte APDU_HEADER_SIZE = 5;
     private static final byte LEDGER_COMMAND_CLA = (byte) 0x08;
 
     // Instruction codes
-    private static final byte INS_GET_INFO = (byte) 0x01;
     private static final byte INS_SET_ISSUER_KEY = (byte) 0x02;
     private static final byte INS_GET_STATUS = (byte) 0xF2;
     private static final byte INS_GET_DATA = (byte) 0xCA;
@@ -281,6 +291,31 @@ public class AppletCharon extends Applet {
     }
 
     /**
+     * Constructs a single TLV field with the given tag and value.
+     *
+     * @param tlvFields the byte array to write the TLV field to
+     * @param offset    the starting offset to write the TLV field
+     * @param tag       the tag (byte or short) for the TLV field
+     * @param value     the value bytes for the TLV field
+     * @return the new offset after writing the TLV field
+     */
+    private short buildTLVField(byte[] tlvFields, short offset, Object tag, byte[] value) {
+        if (tag instanceof byte[]) {
+            byte[] tagarray = (byte[]) tag;
+            tlvFields[offset++] = (byte) tagarray[0];
+        } else if (tag instanceof short[]) {
+            short[] tagarray = (short[]) tag;
+            tlvFields[offset++] = (byte) ((tagarray[0] >> 8) & 0xFF);
+            tlvFields[offset++] = (byte) (tagarray[0] & 0xFF);
+        } else {
+            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+        }
+        tlvFields[offset++] = (byte) value.length;
+        Util.arrayCopyNonAtomic(value, (short) 0, tlvFields, offset, (short) value.length);
+        return (short) (offset + value.length);
+    }
+
+    /**
      * Get general information about the Applet and card itself as well as
      * information about the status of current session.
      * 
@@ -300,32 +335,15 @@ public class AppletCharon extends Applet {
      * (1b) | target id (4b) | IC serial number (4b) | FSM State (1b) | transient
      * FSM State (1b)]
      */
-    private short getInfo(byte[] buffer) {
-
+    private short getStatus(byte[] buffer) {
         short offset = 0;
-
-        // Set the version (3 bytes)
-        buffer[offset++] = APPLET_MAJOR_VERSION;
-        buffer[offset++] = APPLET_MINOR_VERSION;
-        buffer[offset++] = APPLET_PATCH_VERSION;
-
-        // Set the role
-        buffer[offset++] = CARD_CERT_ROLE;
-
-        // Set target ID
-        Util.arrayCopyNonAtomic(CARD_TARGET_ID, (short) 0, buffer, offset, (short) CARD_TARGET_ID.length);
-        offset += CARD_TARGET_ID.length;
-
-        // Set the serial number
-        Util.arrayCopyNonAtomic(serialNumber, (short) 0, buffer, offset, (short) serialNumber.length);
-        offset += serialNumber.length;
-
-        // Set the applet FSM state
-        buffer[offset++] = appletFSM.getCurrentState();
-
-        // Set the transient FSM state
-        buffer[offset++] = transientFSM.getCurrentState();
-
+        offset = buildTLVField(buffer, offset, new byte[] { GET_STATUS_TARGET_ID_TAG }, CARD_TARGET_ID);
+        offset = buildTLVField(buffer, offset, new byte[] { GET_STATUS_SERIAL_NUMBER_TAG }, serialNumber);
+        offset = buildTLVField(buffer, offset, new byte[] { GET_STATUS_APPLET_VERSION_TAG },
+                new byte[] { APPLET_MAJOR_VERSION, APPLET_MINOR_VERSION, APPLET_PATCH_VERSION });
+        offset = buildTLVField(buffer, offset, new byte[] { GET_STATUS_APPLET_FSM_STATE_TAG }, new byte[] { appletFSM.getCurrentState() });
+        offset = buildTLVField(buffer, offset, new byte[] { GET_STATUS_TRANSIENT_FSM_STATE_TAG },
+                new byte[] { transientFSM.getCurrentState() });
         return offset;
     }
 
@@ -446,7 +464,6 @@ public class AppletCharon extends Applet {
         // buffer[offset] = issuer public key length
         cardCertificate.setIssuerPublicKey(buffer, (short) (offset + 1), buffer[offset]);
         offset += 1 + buffer[offset];
-        // buffer[offset] = serial number length
         // Check serial number
         if (Util.arrayCompare(buffer, (short) (offset + 1), serialNumber, (short) 0, buffer[offset]) != 0) {
             ISOException.throwIt(ISO7816.SW_DATA_INVALID);
@@ -723,12 +740,13 @@ public class AppletCharon extends Applet {
         if (dataLength == 0 || buffer[ISO7816.OFFSET_LC] == 0) {
             ISOException.throwIt(SW_MISSING_SCP_LEDGER);
         }
-        if (buffer[ISO7816.OFFSET_LC] != dataLength || buffer[ISO7816.OFFSET_CDATA] != dataLength - 1) {
+        if (buffer[ISO7816.OFFSET_LC] != buffer[ISO7816.OFFSET_CDATA] + 1) {
             ISOException.throwIt(SW_WRONG_LENGTH);
         }
         // Check MAC
-        if (!capsule.checkMAC(buffer, (short) 0, (short) APDU_HEADER_SIZE, (short) buffer[ISO7816.OFFSET_CDATA],
-                (short) (ISO7816.OFFSET_CDATA + 1))) {
+        if (!capsule.checkMAC(buffer, (short) 0, (short) (APDU_HEADER_SIZE - 1), (short) ISO7816.OFFSET_CDATA))
+
+        {
             ISOException.throwIt(SW_INCORRECT_SCP_LEDGER);
         }
         // Reset PIN
@@ -773,6 +791,70 @@ public class AppletCharon extends Applet {
         return capsule.encryptData(ramBuffer, (short) 0, (short) ((seedLength + 1) & 0x00FF), buffer, (short) 0);
     }
 
+    private short getData(byte[] buffer, short cdatalength) {
+        // Check FSM states
+        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] < TransientStateMachine.STATE_AUTHENTICATED) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        // Check cData length field is correct (cdatalength is the APDU length including
+        // header)
+        if (buffer[ISO7816.OFFSET_LC] != 0 || cdatalength != buffer[ISO7816.OFFSET_LC] + APDU_HEADER_SIZE) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        // Extract tag of data as short from P1 / P2
+        short tag = (short) (((short) buffer[ISO7816.OFFSET_P1] << 8) | (short) buffer[ISO7816.OFFSET_P2]);
+        short fieldLength = 0;
+        switch (tag) {
+        case DATA_CARD_NAME_TAG:
+            if (cardName == null) {
+                ISOException.throwIt(SW_REFERENCE_DATA_NOT_FOUND);
+            }
+            fieldLength = buildTLVField(ramBuffer, (short) 0, new short[] { DATA_CARD_NAME_TAG }, cardName);
+            break;
+        case DATA_PIN_TRY_COUNTER_TAG:
+            byte pinTries = pinManager.getTriesRemaining();
+            fieldLength = buildTLVField(ramBuffer, (short) 0, new short[] { DATA_PIN_TRY_COUNTER_TAG }, new byte[] { pinTries });
+            break;
+        default:
+            ISOException.throwIt(SW_WRONG_P1P2);
+            break;
+        }
+        return capsule.encryptData(ramBuffer, (short) 0, fieldLength, buffer, (short) 0);
+    }
+
+    private short setData(byte[] buffer, short cdatalength) {
+        // Check FSM states
+        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        // Check data length
+        if (cdatalength == 0 || buffer[ISO7816.OFFSET_LC] == 0) {
+            ISOException.throwIt(SW_MISSING_SCP_LEDGER);
+        }
+        // Check cData length field is correct (cdatalength is the APDU length including
+        // header)
+        if (cdatalength != buffer[ISO7816.OFFSET_LC] + APDU_HEADER_SIZE) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        // Extract tag of data as short from P1 / P2
+        short tag = (short) (((short) buffer[ISO7816.OFFSET_P1] << 8) | (short) buffer[ISO7816.OFFSET_P2]);
+        if (tag != DATA_CARD_NAME_TAG) {
+            ISOException.throwIt(SW_WRONG_P1P2);
+        }
+        capsule.decryptData(buffer, ISO7816.OFFSET_CDATA, (short) (buffer[ISO7816.OFFSET_LC] & 0x00FF), ramBuffer, (short) 0);
+        byte nameLength = ramBuffer[0];
+        if (nameLength < MIN_CARD_NAME_LENGTH || nameLength > MAX_CARD_NAME_LENGTH) {
+            ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+        }
+        if (cardName != null) {
+            cardName = null;
+            JCSystem.requestObjectDeletion();
+        }
+        cardName = new byte[nameLength];
+        Util.arrayCopyNonAtomic(ramBuffer, (short) 1, cardName, (short) 0, nameLength);
+        return 0;
+    }
+
     /**
      * Processes an incoming APDU.
      * 
@@ -814,6 +896,7 @@ public class AppletCharon extends Applet {
             if (cdatalength > 0) {
                 buffer[ISO7816.OFFSET_CLA] = GP_CLA_EXTERNAL_AUTHENTICATE;
                 cdatalength = secureChannel.unwrap(buffer, (short) 0, (short) (cdatalength + APDU_HEADER_SIZE));
+                buffer[ISO7816.OFFSET_CLA] = LEDGER_COMMAND_CLA;
             }
         } catch (Exception e) {
             ISOException.throwIt((short) 0xFEDE);
@@ -824,8 +907,8 @@ public class AppletCharon extends Applet {
         ramBuffer[1] = transientFSM.getCurrentState();
 
         switch (buffer[ISO7816.OFFSET_INS]) {
-        case INS_GET_INFO:
-            cdatalength = getInfo(buffer);
+        case INS_GET_STATUS:
+            cdatalength = getStatus(buffer);
             break;
         case INS_SET_ISSUER_KEY:
             cdatalength = setIssuerKey(buffer);
@@ -863,14 +946,15 @@ public class AppletCharon extends Applet {
             }
             // TODO: Implement seed verification
             break;
+        case INS_GET_DATA:
+            cdatalength = getData(buffer, cdatalength);
+            break;
         case INS_SET_DATA:
-            if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
-                ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
-            }
-            // setData(buffer);
+            cdatalength = setData(buffer, cdatalength);
             break;
         case INS_FACTORY_RESET:
             cdatalength = factoryReset(buffer, cdatalength);
+            break;
         default:
             ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
         }

@@ -147,11 +147,21 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     private static final short SECURITY_LEVEL_MASK = 0x7F;
 
     // Key tag values
-    private static final byte TAG_KEY_ID_LENGTH = (byte) 2;
+    private static final byte TAG_KEY_USAGE = (byte) 0x95;
     private static final byte TAG_KEY_TYPE = (byte) 0x80;
-    private static final byte TAG_KEY_TYPE_LENGTH = (byte) 1;
-    private static final byte TAG_KEY_VALUE = (byte) 0x81;
+    private static final byte TAG_KEY_LENGTH = (byte) 0x81;
     private static final byte TAG_KEY_ID = (byte) 0x82;
+    private static final byte TAG_KEY_VERSION = (byte) 0x83;
+    private static final byte TAG_KEY_PARAM_LENGTH = (byte) 0x01;
+    // Data Grouping Identifier for key Control Reference Template (CRT)
+    private static final short DGI_TAG_KEY_CRT = (short) 0x00B9;
+    // Data Grouping Identifier for key value
+    private static final short DGI_TAG_KEY_VALUE = (short) 0x8137;
+    // Key usage: digital signature
+    private static final byte KEY_USAGE_SIGNATURE = (byte)0x02;
+    // Type: ECC private key
+    private static final byte KEY_TYPE_PRIVATE_ECC = (byte)0xB1;
+    private static final byte KEY_VERSION_01 = (byte)0x01;
 
     @Override
     public Element onSave() {
@@ -297,8 +307,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         capsule = new CapsuleCBC();
         // Initialize Issuer key
         crypto.initCurve(CryptoUtil.SECP256K1);
-        issuerKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, crypto.getCurve().getCurveLength(),
-                false);
+        issuerKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, crypto.getCurve().getCurveLength(), false);
         crypto.getCurve().setCurveParameters(issuerKey);
 
         if (UpgradeManager.isUpgrading() == false) {
@@ -938,8 +947,9 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         short dataLength;
         byte tlvTag;
         byte tlvLength;
-        byte keyType;
+        byte keyID;
         byte securityLevel;
+        short dgi;
 
         secureChannel = GPSystem.getSecureChannel();
         securityLevel = secureChannel.getSecurityLevel();
@@ -954,65 +964,103 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             return;
         }
 
-        dataLength = (short)(sLength - ISO7816.OFFSET_CDATA);
-
-        // Go through all the TLV contained in the CDATA
         dataOffset = (short)ISO7816.OFFSET_CDATA;
-        while (dataLength > 0) {
-            // At least the 'TL' bytes of the 'TLV'
-            if (dataLength < 2) {
-                ISOException.throwIt(SW_INCORRECT_PARAMETERS);
-                return;
-            }
+        dgi = Util.getShort(baBuffer, dataOffset);
 
-            tlvTag = baBuffer[(short)dataOffset];
-            tlvLength = baBuffer[(short)(dataOffset + 1)];
+        // Skip DGI two bytes
+        dataOffset += 2;
+        dataLength = (short)(sLength - ISO7816.OFFSET_CDATA - 2);
 
-            // Check if 'L' value is consistent with remaining data length
-            if ((tlvLength + 2) > dataLength) {
-                ISOException.throwIt(SW_INCORRECT_PARAMETERS);
-                return;
-            }
+        // DGI
+        switch (dgi) {
+            case DGI_TAG_KEY_VALUE:
+                tlvLength = baBuffer[dataOffset];
+                if ((securityLevel & (SecureChannel.C_MAC | SecureChannel.C_DECRYPTION)) != (SecureChannel.C_MAC | SecureChannel.C_DECRYPTION)) {
+                    ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+                    return;
+                }
+                if (tlvLength != CryptoUtil.SECP256K1_PRIVATE_KEY_LEN) {
+                    ISOException.throwIt(SW_INCORRECT_PARAMETERS);
+                    return;
+                }
+                issuerKey.setS(baBuffer, (short)(dataOffset + 1), CryptoUtil.SECP256K1_PRIVATE_KEY_LEN);
+                // Erase key value from APDU buffer
+                Util.arrayFillNonAtomic(baBuffer, (short)(dataOffset + 1), (short)CryptoUtil.SECP256K1_PRIVATE_KEY_LEN, (byte)0xFF);
+                break;
 
-            switch(tlvTag) {
-                case TAG_KEY_ID:
-                    if (tlvLength != TAG_KEY_ID_LENGTH) {
-                        ISOException.throwIt(ISO7816.SW_WRONG_DATA);
-                        return;
-                    }
-                    //keyID = Util.getShort(baBuffer, (short)(dataOffset + 2));
-                    break;
-
-                case TAG_KEY_TYPE: 
-                    if (tlvLength != TAG_KEY_TYPE_LENGTH) {
-                        ISOException.throwIt(ISO7816.SW_WRONG_DATA);
-                        return;
-                    }
-                    keyType = baBuffer[(short)(dataOffset + 2)];
-                    break;
-
-                case TAG_KEY_VALUE:
-                    if ((securityLevel & (SecureChannel.C_MAC | SecureChannel.C_DECRYPTION)) != (SecureChannel.C_MAC | SecureChannel.C_DECRYPTION)) {
-                        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
-                        return;
-                    }
-                    if (tlvLength != CryptoUtil.SECP256K1_PRIVATE_KEY_LEN) {
+            case DGI_TAG_KEY_CRT:
+                while (dataLength > 0) {
+                    // At least the 'TL' bytes of the 'TLV'
+                    if (dataLength < 2) {
                         ISOException.throwIt(SW_INCORRECT_PARAMETERS);
                         return;
                     }
-                    issuerKey.setS(baBuffer, (short)(dataOffset + 2), CryptoUtil.SECP256K1_PRIVATE_KEY_LEN);
-                    // Erase key value from APDU buffer
-                    Util.arrayFillNonAtomic(baBuffer, (short)(dataOffset + 2), (short)CryptoUtil.SECP256K1_PRIVATE_KEY_LEN, (byte)0xFF);
-                    break;
 
-                default:
-                    // Tag not found
-                    ISOException.throwIt(SW_REFERENCE_DATA_NOT_FOUND);
-                    return;
-            }
-            // Compute new remaining length after processing the current TLV
-            dataLength = (short)(dataLength - 2 - tlvLength);
-            dataOffset = (short)(dataOffset + 2 + tlvLength);
+                    tlvTag = baBuffer[(short)dataOffset];
+                    tlvLength = baBuffer[(short)(dataOffset + 1)];
+    
+                    // Check if 'L' value is consistent with remaining data length
+                    if ((tlvLength + 2) > dataLength) {
+                        ISOException.throwIt(SW_INCORRECT_PARAMETERS);
+                        return;
+                    }
+
+                    // Check length
+                    if (tlvLength != TAG_KEY_PARAM_LENGTH) {
+                        ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+                        return;
+                    }
+
+                    switch(tlvTag) {
+                        case TAG_KEY_USAGE:
+                            if (baBuffer[(short)(dataOffset + 2)] != KEY_USAGE_SIGNATURE) {
+                                ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+                                return;
+                            }
+                            break;
+
+                        case TAG_KEY_TYPE:
+                            if (baBuffer[(short)(dataOffset + 2)] != KEY_TYPE_PRIVATE_ECC) {
+                                ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+                                return;
+                            }
+                            break;
+
+                        case TAG_KEY_LENGTH:
+                            if (baBuffer[(short)(dataOffset + 2)] != CryptoUtil.SECP256K1_PRIVATE_KEY_LEN) {
+                                ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+                                return;
+                            }
+                            break;
+
+                        case TAG_KEY_ID:
+                            if (baBuffer[(short)(dataOffset + 2)] != CryptoUtil.SECP256K1) {
+                                ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+                                return;
+                            }
+                            break;
+
+                        case TAG_KEY_VERSION:
+                            if (baBuffer[(short)(dataOffset + 2)] != KEY_VERSION_01) {
+                                ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+                                return;
+                            }
+                            break;
+
+                        default:
+                            // Tag not found
+                            ISOException.throwIt((short)(tlvTag));
+                            return;
+                    }
+                    // Compute new remaining length after processing the current TLV
+                    dataLength = (short)(dataLength - 2 - tlvLength);
+                    dataOffset = (short)(dataOffset + 2 + tlvLength);
+                }
+                break;
+
+            default:
+                ISOException.throwIt(SW_REFERENCE_DATA_NOT_FOUND);
+                return;
         }
     }
 

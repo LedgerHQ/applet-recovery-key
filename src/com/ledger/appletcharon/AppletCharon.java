@@ -5,6 +5,7 @@
 
 package com.ledger.appletcharon;
 
+import org.globalplatform.Application;
 import org.globalplatform.GPSystem;
 import org.globalplatform.SecureChannel;
 import org.globalplatform.upgrade.Element;
@@ -27,7 +28,7 @@ import javacard.security.KeyBuilder;
  * @author <user>
  */
 
-public class AppletCharon extends Applet implements OnUpgradeListener {
+public class AppletCharon extends Applet implements OnUpgradeListener, Application {
     // Hardware wallet info
     private static final byte HW_CERT_ROLE = (byte) 0x02;
     private static final byte HW_EPH_CERT_ROLE = (byte) 0x12;
@@ -51,7 +52,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
     // Static certificate keys.
     private ECPrivateKey certificatePrivateKey;
     private ECPublicKey certificatePublicKey;
-    private byte[] issuerKey;
+    private ECPrivateKey issuerKey;
     private byte[] hwStaticCertificatePublicKey;
 
     private SecureChannel secureChannel;
@@ -75,7 +76,6 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
     private static final byte LEDGER_COMMAND_CLA = (byte) 0x08;
 
     // Instruction codes
-    private static final byte INS_SET_ISSUER_KEY = (byte) 0x02;
     private static final byte INS_GET_STATUS = (byte) 0xF2;
     private static final byte INS_GET_DATA = (byte) 0xCA;
     private static final byte INS_GET_PUBLIC_KEY = (byte) 0x40;
@@ -145,6 +145,13 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
     private byte ramBuffer[];
 
     private static final short SECURITY_LEVEL_MASK = 0x7F;
+
+    // Key tag values
+    private static final byte TAG_KEY_ID_LENGTH = (byte) 2;
+    private static final byte TAG_KEY_TYPE = (byte) 0x80;
+    private static final byte TAG_KEY_TYPE_LENGTH = (byte) 1;
+    private static final byte TAG_KEY_VALUE = (byte) 0x81;
+    private static final byte TAG_KEY_ID = (byte) 0x82;
 
     @Override
     public Element onSave() {
@@ -288,6 +295,11 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
         cardCertificate = new Certificate(CARD_CERT_ROLE);
         ephemeralCertificate = new EphemeralCertificate(crypto, CARD_CERT_ROLE);
         capsule = new CapsuleCBC();
+        // Initialize Issuer key
+        crypto.initCurve(CryptoUtil.SECP256K1);
+        issuerKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, crypto.getCurve().getCurveLength(),
+                false);
+        crypto.getCurve().setCurveParameters(issuerKey);
 
         if (UpgradeManager.isUpgrading() == false) {
             // Get the serial number from the install data
@@ -405,33 +417,6 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
     }
 
     /**
-     * Set the Issuer private key. This key is used only during the card
-     * personalization to sign the card public key. This command is only for testing
-     * and will be removed.
-     *
-     * cla: 0x08
-     *
-     * ins: 0x02
-     *
-     * p1: 0x00
-     *
-     * p2: 0x00
-     *
-     * lc: 0x20
-     *
-     * data: - issuer private key (32b)
-     *
-     * return: none
-     */
-    private short setIssuerKey(byte[] buffer) {
-        if (issuerKey == null) {
-            issuerKey = JCSystem.makeTransientByteArray((short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN, JCSystem.CLEAR_ON_DESELECT);
-        }
-        Util.arrayCopy(buffer, (short) ISO7816.OFFSET_CDATA, issuerKey, (short) 0, (short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN);
-        return 0;
-    }
-
-    /**
      * Get the card public key signed by a known Issuer private key.
      *
      * cla: 0x08
@@ -462,10 +447,6 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
         certificatePublicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, crypto.getCurve().getCurveLength(), false);
         // Use ramBuffer for temporary data
         crypto.generateKeyPair(ramBuffer, (short) 0, certificatePrivateKey, certificatePublicKey);
-        if (issuerKey == null) {
-            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
-        }
-        crypto.setSigningKey(issuerKey, (short) 0, (short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN);
 
         // dataToSign = role || target ID || public key
         ramBuffer[0] = CARD_CERT_ROLE;
@@ -480,8 +461,8 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
         buffer[(short) (publicKeyLength + 1)] = (byte) SN_LENGTH;
         Util.arrayCopy(serialNumber, (short) 0, buffer, (short) (publicKeyLength + 2), (short) SN_LENGTH);
         // Compute signature
-        short signatureLength = crypto.computeSignature(ramBuffer, (short) 0, outLength, buffer,
-                (short) (publicKeyLength + 1 + SN_LENGTH + 2));
+        short signatureLength = crypto.computeSignatureWithKey(ramBuffer, (short) 0, outLength, buffer,
+                (short) (publicKeyLength + 1 + SN_LENGTH + 2), issuerKey);
         outLength = (short) (publicKeyLength + 1 + SN_LENGTH + 1);
         buffer[outLength] = (byte) signatureLength;
 
@@ -952,6 +933,89 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
                 (short) 0);
     }
 
+    public void processData(byte[] baBuffer, short sOffset, short sLength) {
+        short dataOffset;
+        short dataLength;
+        byte tlvTag;
+        byte tlvLength;
+        byte keyType;
+        byte securityLevel;
+
+        secureChannel = GPSystem.getSecureChannel();
+        securityLevel = secureChannel.getSecurityLevel();
+
+        if ((securityLevel & SecureChannel.C_MAC) != SecureChannel.C_MAC) {
+            ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+            return;
+        }
+
+        if (sLength < ISO7816.OFFSET_CDATA) {
+            ISOException.throwIt(SW_WRONG_LENGTH);
+            return;
+        }
+
+        dataLength = (short)(sLength - ISO7816.OFFSET_CDATA);
+
+        // Go through all the TLV contained in the CDATA
+        dataOffset = (short)ISO7816.OFFSET_CDATA;
+        while (dataLength > 0) {
+            // At least the 'TL' bytes of the 'TLV'
+            if (dataLength < 2) {
+                ISOException.throwIt(SW_INCORRECT_PARAMETERS);
+                return;
+            }
+
+            tlvTag = baBuffer[(short)dataOffset];
+            tlvLength = baBuffer[(short)(dataOffset + 1)];
+
+            // Check if 'L' value is consistent with remaining data length
+            if ((tlvLength + 2) > dataLength) {
+                ISOException.throwIt(SW_INCORRECT_PARAMETERS);
+                return;
+            }
+
+            switch(tlvTag) {
+                case TAG_KEY_ID:
+                    if (tlvLength != TAG_KEY_ID_LENGTH) {
+                        ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+                        return;
+                    }
+                    //keyID = Util.getShort(baBuffer, (short)(dataOffset + 2));
+                    break;
+
+                case TAG_KEY_TYPE: 
+                    if (tlvLength != TAG_KEY_TYPE_LENGTH) {
+                        ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+                        return;
+                    }
+                    keyType = baBuffer[(short)(dataOffset + 2)];
+                    break;
+
+                case TAG_KEY_VALUE:
+                    if ((securityLevel & (SecureChannel.C_MAC | SecureChannel.C_DECRYPTION)) != (SecureChannel.C_MAC | SecureChannel.C_DECRYPTION)) {
+                        ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+                        return;
+                    }
+                    if (tlvLength != CryptoUtil.SECP256K1_PRIVATE_KEY_LEN) {
+                        ISOException.throwIt(SW_INCORRECT_PARAMETERS);
+                        return;
+                    }
+                    issuerKey.setS(baBuffer, (short)(dataOffset + 2), CryptoUtil.SECP256K1_PRIVATE_KEY_LEN);
+                    // Erase key value from APDU buffer
+                    Util.arrayFillNonAtomic(baBuffer, (short)(dataOffset + 2), (short)CryptoUtil.SECP256K1_PRIVATE_KEY_LEN, (byte)0xFF);
+                    break;
+
+                default:
+                    // Tag not found
+                    ISOException.throwIt(SW_REFERENCE_DATA_NOT_FOUND);
+                    return;
+            }
+            // Compute new remaining length after processing the current TLV
+            dataLength = (short)(dataLength - 2 - tlvLength);
+            dataOffset = (short)(dataOffset + 2 + tlvLength);
+        }
+    }
+
     /**
      * Processes an incoming APDU.
      * 
@@ -1006,9 +1070,6 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
         switch (buffer[ISO7816.OFFSET_INS]) {
         case INS_GET_STATUS:
             cdatalength = getStatus(buffer);
-            break;
-        case INS_SET_ISSUER_KEY:
-            cdatalength = setIssuerKey(buffer);
             break;
         case INS_GET_PUBLIC_KEY:
             cdatalength = getPublicKey(buffer);

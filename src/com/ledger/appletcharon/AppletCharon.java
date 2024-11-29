@@ -832,9 +832,20 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
         return 0;
     }
 
-    private short restoreSeed(byte[] buffer) {
+    private short restoreSeed(byte[] buffer, short dataLength) {
         if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        // Check data length
+        if (dataLength == 0 || buffer[ISO7816.OFFSET_LC] == 0) {
+            ISOException.throwIt(SW_MISSING_SCP_LEDGER);
+        }
+        if (buffer[ISO7816.OFFSET_LC] != buffer[ISO7816.OFFSET_CDATA] + 1) {
+            ISOException.throwIt(SW_WRONG_LENGTH);
+        }
+        // Check MAC
+        if (!capsule.checkMAC(buffer, (short) 0, (short) (APDU_HEADER_SIZE - 1), (short) ISO7816.OFFSET_CDATA)) {
+            ISOException.throwIt(SW_INCORRECT_SCP_LEDGER);
         }
         // Restore seed to ramBuffer
         byte seedLength = seedManager.restoreSeed(ramBuffer, (short) 1);
@@ -848,10 +859,19 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
         if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] < TransientStateMachine.STATE_AUTHENTICATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
+        // Check data length
+        if (cdatalength == 0 || buffer[ISO7816.OFFSET_LC] == 0) {
+            ISOException.throwIt(SW_MISSING_SCP_LEDGER);
+        }
         // Check cData length field is correct (cdatalength is the APDU length including
         // header)
-        if (buffer[ISO7816.OFFSET_LC] != 0 || cdatalength != buffer[ISO7816.OFFSET_LC] + APDU_HEADER_SIZE) {
+        if ((cdatalength != buffer[ISO7816.OFFSET_LC] + APDU_HEADER_SIZE)
+                || (buffer[ISO7816.OFFSET_LC] != buffer[ISO7816.OFFSET_CDATA] + 1)) {
             ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        // Check MAC
+        if (!capsule.checkMAC(buffer, (short) 0, (short) (APDU_HEADER_SIZE - 1), (short) ISO7816.OFFSET_CDATA)) {
+            ISOException.throwIt(SW_INCORRECT_SCP_LEDGER);
         }
         // Extract tag of data as short from P1 / P2
         short tag = (short) (((short) buffer[ISO7816.OFFSET_P1] << 8) | (short) buffer[ISO7816.OFFSET_P2]);
@@ -1010,7 +1030,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
             cdatalength = setSeed(buffer);
             break;
         case INS_RESTORE_SEED:
-            cdatalength = restoreSeed(buffer);
+            cdatalength = restoreSeed(buffer, cdatalength);
             break;
         case INS_VERIFY_SEED:
             cdatalength = verifySeed(buffer, cdatalength);

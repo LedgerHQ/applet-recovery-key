@@ -14,11 +14,10 @@ from ledger_pluto.client import (
     CapsuleAlgorithm,
 )
 from ledger_pluto.command_sender import GPCommandSender
-from ledger_pluto.ledger_pluto import validate_reader
+from ledger_pluto.backend.jrcp_backend import JRCPBackend
 from .conftest import (
     TEST_AUTH_PRIV_KEY,
     TEST_ISSUER_PRIV_KEY,
-    READER,
     ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED,
     ENC_KEY,
     MAC_KEY,
@@ -26,7 +25,6 @@ from .conftest import (
     SEED_LEN,
 )
 
-# from ledger_pluto.command_sender import GPCommandSender
 logger = logging.getLogger(__name__)
 
 
@@ -44,14 +42,13 @@ def configure_client_and_check_state(client):
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_applet():
-    _, reader_obj = validate_reader(READER)
     # Create a connection to the (simulated) card
-    connection = reader_obj.createConnection()
-    connection.connect()
+    backend = JRCPBackend()
+    backend.connect()
     # Create the sender object
-    sender = GPCommandSender(ENC_KEY, MAC_KEY, connection)
+    sender = GPCommandSender(backend, ENC_KEY, MAC_KEY)
     sender.send_select(AID)
-    sender.open_scp03_secure_channel()
+    sender.open_secure_channel()
     client = CharonClient(sender, capsule_algo=CapsuleAlgorithm.AES_CBC_HMAC)
     # Set certificate to enter Attested mode and authenticate
     client.set_issuer_key(bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
@@ -65,7 +62,7 @@ def setup_applet():
     client.set_pin(pin_digits)
     seed = os.urandom(SEED_LEN)
     client.set_seed(seed)
-    connection.disconnect()
+    backend.disconnect()
 
 
 # In User Personalized mode, after authentication and after PIN verification, 'GET STATUS' is supported and should return 0x9000

@@ -38,15 +38,12 @@ jobs:
             export GH_TOKEN=${{ secrets.GH_TOKEN }}
             pdm lock -G github-actions
             pdm install -G github-actions
-            # TODO: update where ledger-pluto looks for the gp.jar
-            cp /home/devuser/gp.jar .
         shell: bash
       
       - name: Run tests
         run: |
-            # Start the pcscd service and the java card simulator
-            pcscd
-            /home/devuser/java_card_simulator/runtime/bin/jcsl -log_level=finest > $HOME/sim.log 2>&1 &
+            # Start the NXP JCOP simulator
+            /home/devuser/jcop_simulator/linux/jcop > $HOME/sim.log 2>&1 &
             # Activate the virtual environment and run the tests
             source .venv/bin/activate
             pytest

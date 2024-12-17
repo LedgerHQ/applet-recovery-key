@@ -33,7 +33,7 @@ update_vars() {
     GP_API_PATH="$DEPS_PATH/GlobalPlatform_Card_API-org.globalplatform-v1.7.1"
     UPGRADE_API_PATH="./deps"
     JCDK_PATH="$DEPS_PATH/java_card_devkit"
-    JCSIM_PATH="$DEPS_PATH/java_card_simulator"
+    JCSIM_PATH="$DEPS_PATH/jcop_simulator"
     JCAPI_PATH="$JCDK_PATH/lib/api_classic-3.0.5.jar"
     JCAPI_ANNOTATIONS_PATH=$JCDK_PATH"/lib/api_classic_annotations-3.0.5.jar"
     AID="A000000002"
@@ -112,10 +112,11 @@ check_dependencies() {
         exit 1
     fi
 
-    # Check for JavaCard Simulator
+    # Check for NXP JCOP simulator
     if [ ! -d $JCSIM_PATH ]; then
-        red "Error: JavaCard Simulator not found in $JCSIM_PATH"
-        red "Please ensure JavaCard Simulator is properly installed in $JCSIM_PATH"
+        red "Error: NXP JCOP Simulator not found in $JCSIM_PATH"
+        red "Please ensure NXP JCOP Simulator is properly installed in $JCSIM_PATH"
+        ls -al $HOME
         exit 1
     fi
 
@@ -299,21 +300,11 @@ run_tests()
         pdm lock -G local
         pdm install -G local
     fi
-    
-    # Get the gp.jar
-    yellow "Downloading gp.jar..."
-    curl -L -o gp.jar https://github.com/martinpaljak/GlobalPlatformPro/releases/latest/download/gp.jar
-    # Run pcscd if not already running
-    if [ ! -e /var/run/pcscd/pcscd.comm ]; then
-        yellow "Starting pcscd service..."
-        sudo systemctl stop pcscd
-        pcscd
-    fi
 
-    # Run the JavaCard simulator
+    # Run the NXP JCOP simulator
     if ! pgrep -x "jcsl" > /dev/null; then
-        yellow "Starting JavaCard simulator..."
-        $JCSIM_PATH/runtime/bin/jcsl -log_level=finest > $HOME/sim.log 2>&1 &
+        yellow "Starting NXP JCOP simulator..."
+        $JCSIM_PATH/linux/jcop > $HOME/sim.log 2>&1 &
     fi
     # Activate the virtual environment and run the tests
     yellow "Running tests..."

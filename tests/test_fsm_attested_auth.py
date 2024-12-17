@@ -11,7 +11,6 @@ from .conftest import (
     SEED_LEN,
 )
 
-# from ledger_pluto.command_sender import GPCommandSender
 logger = logging.getLogger(__name__)
 
 

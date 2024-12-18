@@ -116,7 +116,6 @@ check_dependencies() {
     if [ ! -d $JCSIM_PATH ]; then
         red "Error: NXP JCOP Simulator not found in $JCSIM_PATH"
         red "Please ensure NXP JCOP Simulator is properly installed in $JCSIM_PATH"
-        ls -al $HOME
         exit 1
     fi
 
@@ -302,7 +301,7 @@ run_tests()
     fi
 
     # Run the NXP JCOP simulator
-    if ! pgrep -x "jcsl" > /dev/null; then
+    if ! pgrep -x "jcop" > /dev/null; then
         yellow "Starting NXP JCOP simulator..."
         $JCSIM_PATH/linux/jcop > $HOME/sim.log 2>&1 &
     fi

@@ -26,48 +26,40 @@ def configure_client_and_check_state(client):
     client.get_public_key_and_verify()
 
 
-# In Fab mode, 'GET STATUS' is supported and should return 0x9000
+@pytest.mark.description("'GET STATUS' is supported and should return 0x9000")
 @pytest.mark.order(1)
+@pytest.mark.test_spec("CHA_STATE_FAB_OK_01")
+@pytest.mark.state_machine("fabrication")
 def test_fsm_fab_get_status(client):
-    logger.info("CHA_STATE_FAB_OK_01")
     # This function calls client.get_status() which verifies that GET STATUS returns 0x9000
     check_applet_state(client)
 
 
-# In Fab mode, 'GET DATA' is supported and should return 0x9000
+@pytest.mark.description("'GET DATA' is supported and should return 0x9000")
 @pytest.mark.skip("TODO: implement GET DATA command in applet first")
+@pytest.mark.test_spec("CHA_STATE_FAB_OK_02")
+@pytest.mark.state_machine("fabrication")
 def test_fsm_fab_get_data(client):
-    logger.info("CHA_STATE_FAB_OK_02")
     check_applet_state(client)
 
 
-# In Fab mode, 'GET PUBLIC KEY' is supported and should return 0x9000
+@pytest.mark.description("'GET PUBLIC KEY' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_FAB_OK_03")
+@pytest.mark.state_machine("fabrication")
 def test_fsm_fab_get_pub_key(client):
-    logger.info("CHA_STATE_FAB_OK_03")
     # This function calls client.get_public_key_and_verify() which verifies that GET PUBLIC KEY returns 0x9000
     configure_client_and_check_state(client)
 
 
-# In Fab mode, the following commands should be rejected with 0x6985
-# - GET CERTIFICATE (with P1 = 0x00)
-# - GET CERTIFICATE (with P1 = 0x01)
-# - VALIDATE CERTIFICATE (with P1 = 0x00)
-# - VALIDATE CERTIFICATE (with P1 = 0x01)
-# - SET PIN
-# - SET SEED
-# - VERIFY PIN
-# - CHANGE PIN
-# - RESTORE SEED
-# - VERIFY SEED
-# - SET DATA
-# - FACTORY RESET
+@pytest.mark.description("Unauthorized commands should be rejected with 0x6985")
+@pytest.mark.test_spec("CHA_STATE_FAB_FAIL_01")
+@pytest.mark.state_machine("fabrication")
 def test_fsm_fab_unauthorized_cmds(client):
     # Dummy ephemeral keys (we don't care about the actual values, it's just so the client
     # can send the commands we want to test)
     dummy_priv_key = PrivateKey()
     dummy_pub_key = dummy_priv_key.pubkey.serialize(compressed=False)
     dummy_seed = os.urandom(SEED_LEN)
-    logger.info("CHA_STATE_FAB_FAIL_01")
 
     configure_client_and_check_state(client)
 
@@ -147,10 +139,10 @@ def test_fsm_fab_unauthorized_cmds(client):
     # client.factory_reset()
 
 
-# In Fab mode, 'SET CERTIFICATE' is supported and should return 0x9000
+@pytest.mark.description("'SET CERTIFICATE' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_FAB_OK_04")
+@pytest.mark.state_machine("fabrication")
 def test_fsm_fab_set_certificate(client):
-    logger.info("CHA_STATE_FAB_OK_04")
-
     configure_client_and_check_state(client)
 
     auth_key = bytearray.fromhex(TEST_AUTH_PRIV_KEY)

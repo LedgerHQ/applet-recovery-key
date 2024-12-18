@@ -2,10 +2,10 @@
 # It is not intended for manual editing.
 
 [metadata]
-groups = ["default", "github-actions"]
+groups = ["default", "local"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:511904241b3cb6fc3558cdcc5b48bce35689fbadde40b9c9368e1a0c0ce4b62c"
+content_hash = "sha256:730f85005967f291ca93020ec3c64364e08492399ecb2a96436325622c1cf15f"
 
 [[metadata.targets]]
 requires_python = "==3.11.*"
@@ -15,7 +15,7 @@ name = "bleak"
 version = "0.22.3"
 requires_python = "<3.14,>=3.8"
 summary = "Bluetooth Low Energy platform Agnostic Klient"
-groups = ["github-actions"]
+groups = ["local"]
 dependencies = [
     "async-timeout<5,>=3.0.0; python_version < \"3.11\"",
     "bleak-winrt<2.0.0,>=1.2.0; platform_system == \"Windows\" and python_version < \"3.12\"",
@@ -42,7 +42,7 @@ files = [
 name = "bleak-winrt"
 version = "1.2.0"
 summary = "Python WinRT bindings for Bleak"
-groups = ["github-actions"]
+groups = ["local"]
 marker = "platform_system == \"Windows\" and python_version < \"3.12\""
 files = [
     {file = "bleak-winrt-1.2.0.tar.gz", hash = "sha256:0577d070251b9354fc6c45ffac57e39341ebb08ead014b1bdbd43e211d2ce1d6"},
@@ -55,7 +55,7 @@ name = "certifi"
 version = "2024.12.14"
 requires_python = ">=3.6"
 summary = "Python package for providing Mozilla's CA Bundle."
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "certifi-2024.12.14-py3-none-any.whl", hash = "sha256:1275f7a45be9464efc1173084eaa30f866fe2e47d389406136d332ed4967ec56"},
     {file = "certifi-2024.12.14.tar.gz", hash = "sha256:b650d30f370c2b724812bee08008be0c4163b163ddaec3f2546c1caf65f191db"},
@@ -66,7 +66,7 @@ name = "charset-normalizer"
 version = "3.4.0"
 requires_python = ">=3.7.0"
 summary = "The Real First Universal Charset Detector. Open, modern and actively maintained alternative to Chardet."
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "charset_normalizer-3.4.0-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:0d99dd8ff461990f12d6e42c7347fd9ab2532fb70e9621ba520f9e8637161d7c"},
     {file = "charset_normalizer-3.4.0-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:c57516e58fd17d03ebe67e181a4e4e2ccab1168f8c2976c6a334d4f819fe5944"},
@@ -92,7 +92,7 @@ name = "click"
 version = "8.1.7"
 requires_python = ">=3.7"
 summary = "Composable command line interface toolkit"
-groups = ["github-actions"]
+groups = ["local"]
 dependencies = [
     "colorama; platform_system == \"Windows\"",
     "importlib-metadata; python_version < \"3.8\"",
@@ -107,7 +107,7 @@ name = "colorama"
 version = "0.4.6"
 requires_python = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,!=3.6.*,>=2.7"
 summary = "Cross-platform colored terminal text."
-groups = ["default", "github-actions"]
+groups = ["default", "local"]
 marker = "sys_platform == \"win32\" or platform_system == \"Windows\""
 files = [
     {file = "colorama-0.4.6-py2.py3-none-any.whl", hash = "sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6"},
@@ -119,7 +119,7 @@ name = "construct"
 version = "2.10.70"
 requires_python = ">=3.6"
 summary = "A powerful declarative symmetric parser/builder for binary data"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "construct-2.10.70-py3-none-any.whl", hash = "sha256:c80be81ef595a1a821ec69dc16099550ed22197615f4320b57cc9ce2a672cb30"},
     {file = "construct-2.10.70.tar.gz", hash = "sha256:4d2472f9684731e58cc9c56c463be63baa1447d674e0d66aeb5627b22f512c29"},
@@ -130,7 +130,7 @@ name = "dbus-fast"
 version = "2.24.4"
 requires_python = "<4.0,>=3.8"
 summary = "A faster version of dbus-next"
-groups = ["github-actions"]
+groups = ["local"]
 marker = "platform_system == \"Linux\""
 files = [
     {file = "dbus_fast-2.24.4-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:5d97063b1000d8a28e76f80f016ec794637df507fbc26a0211053045c2a14958"},
@@ -144,7 +144,7 @@ files = [
 name = "ecpy"
 version = "1.2.5"
 summary = "Pure Pyhton Elliptic Curve Library"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "ECPy-1.2.5-py3-none-any.whl", hash = "sha256:559c92e42406d9d1a6b2b8fc26e6ad7bc985f33903b72f426a56cb1073a25ce3"},
     {file = "ECPy-1.2.5.tar.gz", hash = "sha256:9635cffb9b6ecf7fd7f72aea1665829ac74a1d272006d0057d45a621aae20228"},
@@ -155,7 +155,7 @@ name = "future"
 version = "1.0.0"
 requires_python = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
 summary = "Clean single-source support for Python 3 and 2"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "future-1.0.0-py3-none-any.whl", hash = "sha256:929292d34f5872e70396626ef385ec22355a1fae8ad29e1a734c3e43f9fbc216"},
     {file = "future-1.0.0.tar.gz", hash = "sha256:bd2968309307861edae1458a4f8a4f3598c03be43b97521076aebf5d94c07b05"},
@@ -165,7 +165,7 @@ files = [
 name = "hidapi"
 version = "0.14.0.post4"
 summary = "A Cython interface to the hidapi from https://github.com/libusb/hidapi"
-groups = ["github-actions"]
+groups = ["local"]
 dependencies = [
     "setuptools>=19.0",
 ]
@@ -188,7 +188,7 @@ name = "idna"
 version = "3.10"
 requires_python = ">=3.6"
 summary = "Internationalized Domain Names in Applications (IDNA)"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "idna-3.10-py3-none-any.whl", hash = "sha256:946d195a0d259cbba61165e88e65941f16e9b36ea6ddb97f00452bae8b1287d3"},
     {file = "idna-3.10.tar.gz", hash = "sha256:12f65c9b470abda6dc35cf8e63cc574b1c52b11df2c86030af0ac09b01b13ea9"},
@@ -208,19 +208,20 @@ files = [
 [[package]]
 name = "ledger-pluto"
 version = "0.1.0"
-requires_python = ">=3.11"
-git = "https://${GH_USER}:${GH_TOKEN}@github.com/LedgerHQ/ledger-pluto.git"
-ref = "add-scp02-plain"
-revision = "96924eb14f3445754d5e018f10dc497b03dfd82c"
+requires_python = "<3.13,>=3.11"
+git = "ssh://git@github.com/LedgerHQ/ledger-pluto.git"
+ref = "main"
+revision = "a185b153a667ebfd44570490f6d6d306864766a1"
 summary = "Charon smart card management utility. Use this tool to install, uninstall, and interact with Charon card applet."
-groups = ["github-actions"]
+groups = ["local"]
 dependencies = [
     "construct>=2.10.70",
+    "ecpy>=1.2.5",
     "ledgerblue>=0.1.54",
     "prompt-toolkit>=3.0.48",
     "pycryptodome>=3.21.0",
     "pyscard>=2.2.0",
-    "typer>=0.12.5",
+    "typer>=0.15.1",
 ]
 
 [[package]]
@@ -228,7 +229,7 @@ name = "ledgerblue"
 version = "0.1.54"
 requires_python = ">=3"
 summary = "Python library to communicate with Ledger devices"
-groups = ["github-actions"]
+groups = ["local"]
 dependencies = [
     "bleak>=0.20.1",
     "ecpy>=0.9.0",
@@ -253,7 +254,7 @@ files = [
 name = "libusb1"
 version = "3.1.0"
 summary = "Pure-python wrapper for libusb-1.0"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "libusb1-3.1.0-py3-none-any.whl", hash = "sha256:9d9f16e2c199cab91f48ead585d3f5ec7e8e4be428a25ddfed22abf786fa9b3a"},
     {file = "libusb1-3.1.0-py3-none-win32.whl", hash = "sha256:bc7874302565721f443a27d8182fcc7152e5b560523f12f1377b130f473e4a0c"},
@@ -266,7 +267,7 @@ name = "markdown-it-py"
 version = "3.0.0"
 requires_python = ">=3.8"
 summary = "Python port of markdown-it. Markdown parsing, done right!"
-groups = ["github-actions"]
+groups = ["local"]
 dependencies = [
     "mdurl~=0.1",
 ]
@@ -280,7 +281,7 @@ name = "mdurl"
 version = "0.1.2"
 requires_python = ">=3.7"
 summary = "Markdown URL utilities"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"},
     {file = "mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba"},
@@ -290,7 +291,7 @@ files = [
 name = "ndeflib"
 version = "0.3.3"
 summary = "NFC Data Exchange Format decoder and encoder."
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "ndeflib-0.3.3-py2.py3-none-any.whl", hash = "sha256:c634b1af2ab454754f0fdbe1debd38247ed7bdaf94587359b857726f3ee7decb"},
     {file = "ndeflib-0.3.3.tar.gz", hash = "sha256:1d56828558b9b16f2822a4051824346347b66adf5320ea86070748b6f2454a88"},
@@ -301,7 +302,7 @@ name = "nfcpy"
 version = "1.0.4"
 requires_python = ">=2.6"
 summary = "Python module for Near Field Communication."
-groups = ["github-actions"]
+groups = ["local"]
 dependencies = [
     "libusb1",
     "ndeflib",
@@ -329,7 +330,7 @@ name = "pillow"
 version = "11.0.0"
 requires_python = ">=3.9"
 summary = "Python Imaging Library (Fork)"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "pillow-11.0.0-cp311-cp311-macosx_10_10_x86_64.whl", hash = "sha256:1c1d72714f429a521d8d2d018badc42414c3077eb187a59579f28e4270b4b0fc"},
     {file = "pillow-11.0.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:499c3a1b0d6fc8213519e193796eb1a86a1be4b1877d678b30f83fd979811d1a"},
@@ -361,7 +362,7 @@ name = "prompt-toolkit"
 version = "3.0.48"
 requires_python = ">=3.7.0"
 summary = "Library for building powerful interactive command lines in Python"
-groups = ["github-actions"]
+groups = ["local"]
 dependencies = [
     "wcwidth",
 ]
@@ -375,7 +376,7 @@ name = "protobuf"
 version = "3.20.3"
 requires_python = ">=3.7"
 summary = "Protocol Buffers"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "protobuf-3.20.3-py2.py3-none-any.whl", hash = "sha256:a7ca6d488aa8ff7f329d4c545b2dbad8ac31464f1d8b1c87ad1346717731e4db"},
     {file = "protobuf-3.20.3.tar.gz", hash = "sha256:2e3427429c9cffebf259491be0af70189607f365c2f41c7c3764af6f337105f2"},
@@ -386,7 +387,7 @@ name = "pycryptodome"
 version = "3.21.0"
 requires_python = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7"
 summary = "Cryptographic library for Python"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "pycryptodome-3.21.0-cp36-abi3-macosx_10_9_universal2.whl", hash = "sha256:2480ec2c72438430da9f601ebc12c518c093c13111a5c1644c82cdfc2e50b1e4"},
     {file = "pycryptodome-3.21.0-cp36-abi3-macosx_10_9_x86_64.whl", hash = "sha256:de18954104667f565e2fbb4783b56667f30fb49c4d79b346f52a29cb198d5b6b"},
@@ -406,7 +407,7 @@ name = "pycryptodomex"
 version = "3.21.0"
 requires_python = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.7"
 summary = "Cryptographic library for Python"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "pycryptodomex-3.21.0-cp36-abi3-macosx_10_9_universal2.whl", hash = "sha256:34325b84c8b380675fd2320d0649cdcbc9cf1e0d1526edbe8fce43ed858cdc7e"},
     {file = "pycryptodomex-3.21.0-cp36-abi3-macosx_10_9_x86_64.whl", hash = "sha256:103c133d6cd832ae7266feb0a65b69e3a5e4dbbd6f3a3ae3211a557fd653f516"},
@@ -425,7 +426,7 @@ files = [
 name = "pydes"
 version = "2.0.1"
 summary = "Pure python implementation of DES and TRIPLE DES encryption algorithm"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "pyDes-2.0.1.tar.gz", hash = "sha256:e2ab8e21d2b83e90d90dbfdcb6fb8ac0000b813238b7ecaede04f8435c389012"},
 ]
@@ -434,7 +435,7 @@ files = [
 name = "pyelftools"
 version = "0.31"
 summary = "Library for analyzing ELF files and DWARF debugging information"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "pyelftools-0.31-py3-none-any.whl", hash = "sha256:f52de7b3c7e8c64c8abc04a79a1cf37ac5fb0b8a49809827130b858944840607"},
     {file = "pyelftools-0.31.tar.gz", hash = "sha256:c774416b10310156879443b81187d182d8d9ee499660380e645918b50bc88f99"},
@@ -445,7 +446,7 @@ name = "pygments"
 version = "2.18.0"
 requires_python = ">=3.8"
 summary = "Pygments is a syntax highlighting package written in Python."
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "pygments-2.18.0-py3-none-any.whl", hash = "sha256:b8e6aca0523f3ab76fee51799c488e38782ac06eafcf95e7ba832985c8e7b13a"},
     {file = "pygments-2.18.0.tar.gz", hash = "sha256:786ff802f32e91311bff3889f6e9a86e81505fe99f2735bb6d60ae0c5004f199"},
@@ -456,7 +457,7 @@ name = "pyobjc-core"
 version = "10.3.2"
 requires_python = ">=3.8"
 summary = "Python<->ObjC Interoperability Module"
-groups = ["github-actions"]
+groups = ["local"]
 marker = "platform_system == \"Darwin\""
 files = [
     {file = "pyobjc_core-10.3.2-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:cea5e77659619ad93c782ca07644b6efe7d7ec6f59e46128843a0a87c1af511a"},
@@ -468,7 +469,7 @@ name = "pyobjc-framework-cocoa"
 version = "10.3.2"
 requires_python = ">=3.8"
 summary = "Wrappers for the Cocoa frameworks on macOS"
-groups = ["github-actions"]
+groups = ["local"]
 marker = "platform_system == \"Darwin\""
 dependencies = [
     "pyobjc-core>=10.3.2",
@@ -483,7 +484,7 @@ name = "pyobjc-framework-corebluetooth"
 version = "10.3.2"
 requires_python = ">=3.8"
 summary = "Wrappers for the framework CoreBluetooth on macOS"
-groups = ["github-actions"]
+groups = ["local"]
 marker = "platform_system == \"Darwin\""
 dependencies = [
     "pyobjc-core>=10.3.2",
@@ -502,7 +503,7 @@ name = "pyobjc-framework-libdispatch"
 version = "10.3.2"
 requires_python = ">=3.8"
 summary = "Wrappers for libdispatch on macOS"
-groups = ["github-actions"]
+groups = ["local"]
 marker = "platform_system == \"Darwin\""
 dependencies = [
     "pyobjc-core>=10.3.2",
@@ -518,7 +519,7 @@ name = "pyscard"
 version = "2.2.0"
 requires_python = ">=3.9"
 summary = "Smartcard module for Python."
-groups = ["github-actions"]
+groups = ["local"]
 dependencies = [
     "typing-extensions; python_version == \"3.9\"",
 ]
@@ -533,7 +534,7 @@ files = [
 name = "pyserial"
 version = "3.5"
 summary = "Python Serial Port Extension"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "pyserial-3.5-py2.py3-none-any.whl", hash = "sha256:c4451db6ba391ca6ca299fb3ec7bae67a5c55dde170964c7a14ceefec02f2cf0"},
     {file = "pyserial-3.5.tar.gz", hash = "sha256:3c77e014170dfffbd816e6ffc205e9842efb10be9f58ec16d3e8675b4925cddb"},
@@ -577,7 +578,7 @@ files = [
 name = "python-gnupg"
 version = "0.5.3"
 summary = "A wrapper for the Gnu Privacy Guard (GPG or GnuPG)"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "python-gnupg-0.5.3.tar.gz", hash = "sha256:290d8ddb9cd63df96cfe9284b9b265f19fd6e145e5582dc58fd7271f026d0a47"},
     {file = "python_gnupg-0.5.3-py2.py3-none-any.whl", hash = "sha256:2f8a4c6f63766feca6cc1416408f8b84e1b914fe7b54514e570fc5cbe92e9248"},
@@ -587,7 +588,7 @@ files = [
 name = "python-u2flib-host"
 version = "3.0.3"
 summary = "Python based U2F host library"
-groups = ["github-actions"]
+groups = ["local"]
 dependencies = [
     "hidapi>=0.7.99",
     "requests",
@@ -601,7 +602,7 @@ name = "requests"
 version = "2.32.3"
 requires_python = ">=3.8"
 summary = "Python HTTP for Humans."
-groups = ["github-actions"]
+groups = ["local"]
 dependencies = [
     "certifi>=2017.4.17",
     "charset-normalizer<4,>=2",
@@ -618,7 +619,7 @@ name = "rich"
 version = "13.9.4"
 requires_python = ">=3.8.0"
 summary = "Render rich text, tables, progress bars, syntax highlighting, markdown and more to the terminal"
-groups = ["github-actions"]
+groups = ["local"]
 dependencies = [
     "markdown-it-py>=2.2.0",
     "pygments<3.0.0,>=2.13.0",
@@ -634,7 +635,7 @@ name = "setuptools"
 version = "75.6.0"
 requires_python = ">=3.9"
 summary = "Easily download, build, install, upgrade, and uninstall Python packages"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "setuptools-75.6.0-py3-none-any.whl", hash = "sha256:ce74b49e8f7110f9bf04883b730f4765b774ef3ef28f722cce7c273d253aaf7d"},
     {file = "setuptools-75.6.0.tar.gz", hash = "sha256:8199222558df7c86216af4f84c30e9b34a61d8ba19366cc914424cdbd28252f6"},
@@ -645,7 +646,7 @@ name = "shellingham"
 version = "1.5.4"
 requires_python = ">=3.7"
 summary = "Tool to Detect Surrounding Shell"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "shellingham-1.5.4-py2.py3-none-any.whl", hash = "sha256:7ecfff8f2fd72616f7481040475a65b2bf8af90a56c89140852d1120324e8686"},
     {file = "shellingham-1.5.4.tar.gz", hash = "sha256:8dbca0739d487e5bd35ab3ca4b36e11c4078f3a234bfce294b0a0291363404de"},
@@ -656,7 +657,7 @@ name = "typer"
 version = "0.15.1"
 requires_python = ">=3.7"
 summary = "Typer, build great CLIs. Easy to code. Based on Python type hints."
-groups = ["github-actions"]
+groups = ["local"]
 dependencies = [
     "click>=8.0.0",
     "rich>=10.11.0",
@@ -673,7 +674,7 @@ name = "typing-extensions"
 version = "4.12.2"
 requires_python = ">=3.8"
 summary = "Backported and Experimental Type Hints for Python 3.8+"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "typing_extensions-4.12.2-py3-none-any.whl", hash = "sha256:04e5ca0351e0f3f85c6853954072df659d0d13fac324d0072316b67d7794700d"},
     {file = "typing_extensions-4.12.2.tar.gz", hash = "sha256:1a7ead55c7e559dd4dee8856e3a88b41225abfe1ce8df57b7c13915fe121ffb8"},
@@ -684,7 +685,7 @@ name = "urllib3"
 version = "2.2.3"
 requires_python = ">=3.8"
 summary = "HTTP library with thread-safe connection pooling, file post, and more."
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "urllib3-2.2.3-py3-none-any.whl", hash = "sha256:ca899ca043dcb1bafa3e262d73aa25c465bfb49e0bd9dd5d59f1d0acba2f8fac"},
     {file = "urllib3-2.2.3.tar.gz", hash = "sha256:e7d814a81dad81e6caf2ec9fdedb284ecc9c73076b62654547cc64ccdcae26e9"},
@@ -694,7 +695,7 @@ files = [
 name = "wcwidth"
 version = "0.2.13"
 summary = "Measures the displayed width of unicode strings in a terminal"
-groups = ["github-actions"]
+groups = ["local"]
 dependencies = [
     "backports-functools-lru-cache>=1.2.1; python_version < \"3.2\"",
 ]
@@ -708,7 +709,7 @@ name = "websocket-client"
 version = "1.8.0"
 requires_python = ">=3.8"
 summary = "WebSocket client for Python with low level API options"
-groups = ["github-actions"]
+groups = ["local"]
 files = [
     {file = "websocket_client-1.8.0-py3-none-any.whl", hash = "sha256:17b44cc997f5c498e809b22cdf2d9c7a9e71c02c8cc2b6c56e7c2d1239bfa526"},
     {file = "websocket_client-1.8.0.tar.gz", hash = "sha256:3239df9f44da632f96012472805d40a23281a991027ce11d2f45a6f24ac4c3da"},

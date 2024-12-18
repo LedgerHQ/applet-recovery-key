@@ -1,13 +1,15 @@
 import os
 import logging
 import pytest
-from typing import Generator
+import functools
+from typing import Generator, Tuple
 from ledger_pluto.client import CharonClient, CapsuleAlgorithm
 from ledger_pluto.command_sender import GPCommandSender
 from ledger_pluto.applet_loader import AppletLoader
 from ledger_pluto.card_manager import CardManager
 from ledger_pluto.backend.jrcp_backend import JRCPBackend
 from ledger_pluto.ledger_pluto import configure_nxp_sim
+
 
 DEFAULT_SIM_ENC_KEY = "1111111111111111111111111111111111111111111111111111111111111111"
 DEFAULT_SIM_MAC_KEY = "2222222222222222222222222222222222222222222222222222222222222222"
@@ -64,3 +66,241 @@ def sender(request) -> Generator[GPCommandSender, None, None]:
 def client(sender) -> Generator[CharonClient, None, None]:
     # Create the client object
     yield CharonClient(sender, capsule_algo=CapsuleAlgorithm.AES_CBC_HMAC)
+
+
+def get_test_spec_name(item):
+    """
+    Extract the test specification name from the marker
+    """
+    # Check for test_spec marker
+    spec_marker = item.get_closest_marker("test_spec")
+    if spec_marker and spec_marker.args:
+        return spec_marker.args[0]
+
+    # Fallback to function name
+    return item.name
+
+
+def get_test_description(item):
+    """
+    Extract the description from the marker
+    """
+    # Check for description marker
+    desc_marker = item.get_closest_marker("description")
+    if desc_marker and desc_marker.args:
+        return desc_marker.args[0]
+
+    # Fallback to empty string
+    return ""
+
+
+TEST_CATEGORIES = [
+    (
+        "state_machine",
+        [
+            "fabrication",
+            "attested1",
+            "attested2",
+            "perso_pin_lock",
+            "perso_auth",
+            "perso_pin_unlock",
+        ],
+    ),
+    ("secure_channels", [""]),
+    ("commands", [""]),
+    ("generic", [""]),
+    ("platform", [""]),
+]
+
+TEST_CATEGORY_DESCRIPTIONS = {
+    (
+        "state_machine",
+        "fabrication",
+    ): (
+        "Fabrication",
+        "Tests that verify the behavior of the applet in Fabrication persistent state",
+    ),
+    (
+        "state_machine",
+        "attested1",
+    ): (
+        "Attested - No Authentication",
+        "Tests that verify the behavior of the applet in Attested persistent state without authentication (without opening a Ledger secure channel)",
+    ),
+    (
+        "state_machine",
+        "attested2",
+    ): (
+        "Attested - Authenticated",
+        "Tests that verify the behavior of the applet in Attested persistent state with authentication (after opening a Ledger secure channel)",
+    ),
+    (
+        "state_machine",
+        "perso_pin_lock",
+    ): (
+        "User Personalized - Pin Locked",
+        "Tests that verify the behavior of the applet in User Personalized persistent state before authentication",
+    ),
+    (
+        "state_machine",
+        "perso_auth",
+    ): (
+        "User Personalized - Authenticated",
+        "Tests that verify the behavior of the applet in User Personalized persistent state after authentication and before PIN verification",
+    ),
+    (
+        "state_machine",
+        "perso_pin_unlock",
+    ): (
+        "User Personalized - Pin Unlocked",
+        "Tests that verify the behavior of the applet in User Personalized persistent state after authentication and after PIN verification",
+    ),
+}
+
+TEST_DOC_URL = "https://ledgerhq.atlassian.net/wiki/spaces/FW/pages/5027168270/Charon+-+Tech+-+Test+Plan+-+Applet#Charon---{category}"
+
+
+def get_test_category_and_subcategory(item) -> Tuple[str, str, str, str]:
+    """
+    Extract category, subcategory, and description from markers
+    Returns: (category, subcategory, description)
+    """
+    for category, subcategories in TEST_CATEGORIES:
+        marker = item.get_closest_marker(category)
+        if marker:
+            subcategory = marker.args[0] if marker.args else ""
+            if subcategory in subcategories:
+                title, desc = TEST_CATEGORY_DESCRIPTIONS[(category, subcategory)]
+                return category, subcategory, desc, title
+    return "uncategorized", "", "", ""
+
+
+def pytest_configure(config):
+    """
+    Initialize the GitHub Step Summary file and test tracking
+    """
+    config.github_step_summary_file = os.environ.get(
+        "GITHUB_STEP_SUMMARY", "test_summary.md"
+    )
+    open(config.github_step_summary_file, "w").close()
+
+    config.addinivalue_line(
+        "markers", "test_spec(name): mark test with a specification name"
+    )
+    config.addinivalue_line(
+        "markers", "description(text): mark test with a description of what it does"
+    )
+
+    for category, _ in TEST_CATEGORIES:
+        config.addinivalue_line(
+            "markers",
+            f"{category}(subcategory): mark test with category and subcategory",
+        )
+
+    # Initialize tables dict with category-subcategory pairs
+    config.subcategory_tables = {}
+    config.subcategory_descriptions = {}
+    config.subcategory_titles = {}
+
+
+def pytest_runtest_makereport(item, call):
+    """
+    Generate a summary for each test case in markdown tables by subcategory
+    """
+    summary_file = item.config.github_step_summary_file
+    if summary_file and call.when == "call":
+        test_spec_name = get_test_spec_name(item)
+        category, subcategory, category_description, subcategory_title = (
+            get_test_category_and_subcategory(item)
+        )
+        description = get_test_description(item)
+
+        if call.excinfo:
+            status = "❌ Failed"
+            duration = f"{call.stop - call.start:.2f}s"
+            details = str(call.excinfo.value)
+        else:
+            status = "✅ Passed"
+            duration = f"{call.stop - call.start:.2f}s"
+            details = ""
+
+        # Use category-subcategory pair as key
+        subcategory_key = f"{category}:{subcategory}" if subcategory else category
+
+        if subcategory_key not in item.config.subcategory_tables:
+            item.config.subcategory_tables[subcategory_key] = []
+            item.config.subcategory_descriptions[subcategory_key] = category_description
+            item.config.subcategory_titles[subcategory_key] = subcategory_title
+
+        details_cell = (
+            f"<details><summary>Error</summary>\n\n```\n{details}\n```\n</details>"
+            if details
+            else "-"
+        )
+        test_row = f"| {test_spec_name} | {item.name} | {status} | {duration} | {description} | {details_cell} |"
+        item.config.subcategory_tables[subcategory_key].append(test_row)
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """
+    Write out the subcategory tables and generate overall summary
+    """
+    summary_file = config.github_step_summary_file
+    if summary_file and hasattr(config, "subcategory_tables"):
+        with open(summary_file, "w") as f:
+            # Group subcategories by their parent category
+            category_groups = {}
+            for subcategory_key in config.subcategory_tables:
+                category = subcategory_key.split(":")[0]
+                if category not in category_groups:
+                    category_groups[category] = []
+                category_groups[category].append(subcategory_key)
+
+            # Write tables grouped by category
+            for category, subcategory_keys in category_groups.items():
+                # Write category header with URL
+                category_title = category.replace("_", " ").title()
+                doc_url = TEST_DOC_URL.format(
+                    category=category.replace("_", "-").title()
+                )
+                f.write(f"## [{category_title}]({doc_url})\n\n")
+
+                # Write tables for each subcategory under this category
+                for subcategory_key in sorted(subcategory_keys):
+                    rows = config.subcategory_tables[subcategory_key]
+                    description = config.subcategory_descriptions[subcategory_key]
+                    subcategory_title = config.subcategory_titles[subcategory_key]
+
+                    f.write(f"### {subcategory_title} Tests\n")
+                    if description:
+                        f.write(f"{description}\n")
+
+                    f.write(
+                        "| Test Specification | Function Name | Status | Duration | Description | Details |\n"
+                    )
+                    f.write(
+                        "|-------------------|--------------|--------|----------|-------------|----------|\n"
+                    )
+
+                    for row in rows:
+                        f.write(f"{row}\n")
+
+                    f.write("\n")
+
+            # Write summary statistics
+            stats = terminalreporter.stats
+            total_tests = (
+                stats.get("passed", [])
+                + stats.get("failed", [])
+                + stats.get("skipped", [])
+                + stats.get("error", [])
+            )
+            passed_tests = stats.get("passed", [])
+            failed_tests = stats.get("failed", []) + stats.get("error", [])
+            skipped_tests = stats.get("skipped", [])
+
+            f.write("## Test Run Summary\n")
+            f.write(f"**Total Tests:** {len(total_tests)}\n")
+            f.write(f"**Passed:** {len(passed_tests)} ✅\n")
+            f.write(f"**Failed:** {len(failed_tests)} ❌\n")
+            f.write(f"**Skipped:** {len(skipped_tests)} ⏩\n")

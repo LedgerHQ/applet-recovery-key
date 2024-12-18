@@ -63,30 +63,34 @@ def setup_applet():
     backend.disconnect()
 
 
-# In User Personalized mode and after authentication, 'GET STATUS' is supported and should return 0x9000
+@pytest.mark.description("'GET STATUS' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_UP_AUTH_OK_01")
+@pytest.mark.state_machine("perso_auth")
 def test_fsm_perso_auth_get_status(client):
-    logger.info("CHA_STATE_UP_AUTH_OK_01")
     # This function calls client.get_status() which verifies that GET STATUS returns 0x9000
     configure_client_and_check_state(client)
 
 
+@pytest.mark.test_spec("CHA_STATE_UP_AUTH_OK_02")
+@pytest.mark.state_machine("perso_auth")
 @pytest.mark.skip("TODO: implement GET DATA command in applet first")
 def test_fsm_perso_auth_get_data(client):
-    logger.info("CHA_STATE_UP_AUTH_OK_02")
     configure_client_and_check_state(client)
 
 
+@pytest.mark.description("'SET PIN' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_UP_AUTH_OK_03")
+@pytest.mark.state_machine("perso_auth")
 def test_fsm_perso_auth_verify_pin(client):
-    logger.info("CHA_STATE_UP_AUTH_OK_02")
     configure_client_and_check_state(client)
     pin_digits = bytes([0x01, 0x02, 0x03, 0x04])
     client.verify_pin(pin_digits)
 
 
-# In User Personalized mode and after authentication, the following commands should be rejected with 0x6985
+@pytest.mark.description("Unauthorized commands should be rejected with 0x6985")
+@pytest.mark.test_spec("CHA_STATE_UP_AUTH_FAIL_01")
+@pytest.mark.state_machine("perso_auth")
 def test_fsm_perso_auth_unauthorized_cmds(client):
-    logger.info("CHA_STATE_HSM1_FAIL_01")
-
     configure_client_and_check_state(client)
 
     with pytest.raises(AssertionError) as e:

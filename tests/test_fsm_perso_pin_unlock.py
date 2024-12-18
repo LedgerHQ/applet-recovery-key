@@ -65,50 +65,62 @@ def setup_applet():
     backend.disconnect()
 
 
-# In User Personalized mode, after authentication and after PIN verification, 'GET STATUS' is supported and should return 0x9000
+@pytest.mark.description("'GET STATUS' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_UP_MGMT_OK_01")
+@pytest.mark.state_machine("perso_pin_unlock")
 def test_fsm_perso_pin_unlock_get_status(client):
-    logger.info("CHA_STATE_UP_MGMT_OK_01")
     # This function calls client.get_status() which verifies that GET STATUS returns 0x9000
     configure_client_and_check_state(client)
 
 
+@pytest.mark.description("'GET DATA' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_UP_MGMT_OK_02")
+@pytest.mark.state_machine("perso_pin_unlock")
 @pytest.mark.skip("TODO: implement GET DATA command in applet first")
 def test_fsm_perso_pin_unlock_get_data(client):
     logger.info("CHA_STATE_UP_MGMT_OK_02")
     configure_client_and_check_state(client)
 
 
+@pytest.mark.description("'RESTORE SEED' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_UP_MGMT_OK_04")
+@pytest.mark.state_machine("perso_pin_unlock")
 def test_fsm_perso_pin_unlock_restore_seed(client):
-    logger.info("CHA_STATE_UP_MGMT_OK_04")
     configure_client_and_check_state(client)
     client.restore_seed()
 
 
+@pytest.mark.description("'VERIFY SEED' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_UP_MGMT_OK_05")
+@pytest.mark.state_machine("perso_pin_unlock")
 @pytest.mark.skip("TODO: implement VERIFY SEED command in applet first")
 def test_fsm_perso_pin_unlock_verify_seed(client):
-    logger.info("CHA_STATE_UP_MGMT_OK_05")
     configure_client_and_check_state(client)
     # client.verify_seed()
 
 
+@pytest.mark.description("'SET DATA' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_UP_MGMT_OK_06")
+@pytest.mark.state_machine("perso_pin_unlock")
 @pytest.mark.skip("TODO: implement SET DATA command in applet first")
 def test_fsm_perso_pin_unlock_set_data(client):
-    logger.info("CHA_STATE_UP_MGMT_OK_06")
     configure_client_and_check_state(client)
     # client.set_data()
 
 
+@pytest.mark.description("'FACTORY RESET' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_UP_MGMT_OK_07")
+@pytest.mark.state_machine("perso_pin_unlock")
 @pytest.mark.skip("TODO: implement FACTORY RESET command in applet first")
 def test_fsm_perso_pin_unlock_factory_reset(client):
-    logger.info("CHA_STATE_UP_MGMT_OK_07")
     configure_client_and_check_state(client)
     # client.factory_reset()
 
 
-# In User Personalized mode, after authentication and after PIN verification, the following commands should be rejected with 0x6985
+@pytest.mark.description("Unauthorized commands should be rejected with 0x6985")
+@pytest.mark.test_spec("CHA_STATE_UP_MGMT_FAIL_01")
+@pytest.mark.state_machine("perso_pin_unlock")
 def test_fsm_perso_pin_unlock_unauthorized_cmds(client):
-    logger.info("CHA_STATE_UP_MGMT_FAIL_01")
-
     configure_client_and_check_state(client)
 
     with pytest.raises(AssertionError) as e:
@@ -174,8 +186,10 @@ def test_fsm_perso_pin_unlock_unauthorized_cmds(client):
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
 
+@pytest.mark.description("'CHANGE PIN' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_UP_MGMT_OK_03")
+@pytest.mark.state_machine("perso_pin_unlock")
 def test_fsm_perso_pin_unlock_change_pin(client):
-    logger.info("CHA_STATE_UP_MGMT_OK_03")
     configure_client_and_check_state(client)
     pin_digits = bytes([0x04, 0x03, 0x02, 0x01])
     client.change_pin(pin_digits)

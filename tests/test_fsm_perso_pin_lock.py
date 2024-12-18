@@ -21,16 +21,6 @@ from .conftest import (
 logger = logging.getLogger(__name__)
 
 
-# def configure_client_and_check_state(client):
-#     client.get_card_static_certificate_and_verify()
-#     client.get_card_ephemeral_certificate_and_verify()
-#     client.validate_hw_static_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
-#     client.validate_hw_ephemeral_certificate()
-#     infos = client.get_status()
-#     assert infos.fsm_state == "Attested"
-#     assert infos.transient_fsm_state == "Pin_Locked"
-
-
 @pytest.fixture(scope="module", autouse=True)
 def setup_applet():
     # Create a connection to the (simulated) card
@@ -62,30 +52,39 @@ def check_applet_state(client):
     assert infos.transient_fsm_state == "Pin_Locked"
 
 
-# In User Personalized mode and before authentication, 'GET STATUS' is supported and should return 0x9000
+@pytest.mark.description("'GET STATUS' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_UP_LOCKED_OK_01")
+@pytest.mark.state_machine("perso_pin_lock")
 def test_fsm_perso_pin_lock_get_status(client):
-    logger.info("CHA_STATE_UP_LOCKED_OK_01")
     # This function calls client.get_status() which verifies that GET STATUS returns 0x9000
     check_applet_state(client)
 
 
-# In User Personalized mode and before authentication, 'GET CERTIFICATE' with P1 = 0x00 and P1 = 0x01 are supported and should return 0x9000
+@pytest.mark.description(
+    "'GET CERTIFICATE' with P1 = 0x00 and P1 = 0x01 are supported and should return 0x9000"
+)
+@pytest.mark.test_spec("CHA_STATE_UP_LOCKED_OK_02")
+@pytest.mark.state_machine("perso_pin_lock")
 def test_fsm_perso_pin_lock_get_cert(client):
-    logger.info("CHA_STATE_UP_LOCKED_OK_02")
     check_applet_state(client)
     client.get_card_static_certificate_and_verify()
     client.get_card_ephemeral_certificate_and_verify()
 
 
+@pytest.mark.description("'GET DATA' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_UP_LOCKED_OK_03")
+@pytest.mark.state_machine("perso_pin_lock")
 @pytest.mark.skip("TODO: implement GET DATA command in applet first")
 def test_fsm_perso_pin_lock_get_data(client):
-    logger.info("CHA_STATE_UP_LOCKED_OK_03")
     check_applet_state(client)
 
 
-# In User Personalized mode and before authentication, 'VALIDATE CERTIFICATE' with P1 = 0x00 and P1 = 0x01 are supported and should return 0x9000
+@pytest.mark.description(
+    "'VALIDATE CERTIFICATE' with P1 = 0x00 and P1 = 0x01 are supported and should return 0x9000"
+)
+@pytest.mark.test_spec("CHA_STATE_UP_LOCKED_OK_04")
+@pytest.mark.state_machine("perso_pin_lock")
 def test_fsm_perso_pin_lock_validate_certificates(client):
-    logger.info("CHA_STATE_UP_LOCKED_OK_04")
     check_applet_state(client)
     # We need to get the card certificates again because the connection was closed
     client.get_card_static_certificate_and_verify()
@@ -94,10 +93,10 @@ def test_fsm_perso_pin_lock_validate_certificates(client):
     client.validate_hw_ephemeral_certificate()
 
 
-# In User Personalized mode and before authentication, the following commands should be rejected with 0x6985
+@pytest.mark.description("Unauthorized commands should be rejected with 0x6985")
+@pytest.mark.test_spec("CHA_STATE_UP_LOCKED_FAIL_01")
+@pytest.mark.state_machine("perso_pin_lock")
 def test_fsm_perso_pin_lock_unauthorized_cmds(client):
-    logger.info("CHA_STATE_UP_LOCKED_FAIL_01")
-
     dummy_priv_key = PrivateKey()
     dummy_pub_key = dummy_priv_key.pubkey.serialize(compressed=False)
     dummy_seed = os.urandom(SEED_LEN)

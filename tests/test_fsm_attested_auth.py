@@ -11,7 +11,6 @@ from .conftest import (
     SEED_LEN,
 )
 
-# from ledger_pluto.command_sender import GPCommandSender
 logger = logging.getLogger(__name__)
 
 
@@ -25,9 +24,10 @@ def configure_client_and_check_state(client):
     assert infos.transient_fsm_state == "Authenticated"
 
 
-# In Attested mode after authentication, 'GET STATUS' is supported and should return 0x9000
+@pytest.mark.description("'GET STATUS' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_HSM2_OK_01")
+@pytest.mark.state_machine("attested2")
 def test_fsm_attested_auth_get_status(client):
-    logger.info("CHA_STATE_HSM2_OK_01")
     # Set certificate to enter Attested mode and authenticate
     client.set_issuer_key(bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
     client.get_public_key_and_verify()
@@ -41,18 +41,19 @@ def test_fsm_attested_auth_get_status(client):
     assert infos.transient_fsm_state == "Authenticated"
 
 
-# In Attested mode after authentication, 'SET PIN' is supported and should return 0x9000
+@pytest.mark.description("'SET PIN' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_HSM2_OK_02")
+@pytest.mark.state_machine("attested2")
 def test_fsm_attested_auth_set_pin(client):
-    logger.info("CHA_STATE_HSM2_OK_02")
     configure_client_and_check_state(client)
     pin_digits = bytes([0x01, 0x02, 0x03, 0x04])
     client.set_pin(pin_digits)
 
 
-# In Attested mode after authentication, the following commands should be rejected with 0x6985
+@pytest.mark.description("Unauthorized commands should be rejected with 0x6985")
+@pytest.mark.test_spec("CHA_STATE_HSM2_FAIL_01")
+@pytest.mark.state_machine("attested2")
 def test_fsm_attest_auth_unauthorized_cmds(client):
-    logger.info("CHA_STATE_HSM2_FAIL_01")
-
     configure_client_and_check_state(client)
 
     with pytest.raises(AssertionError) as e:
@@ -129,10 +130,12 @@ def test_fsm_attest_auth_unauthorized_cmds(client):
     # client.factory_reset()
 
 
-# In Attested mode after authentication and 'SET PIN' has been properly sent,
-# 'SET SEED' is supported and should return 0x9000
+@pytest.mark.description(
+    "After 'SET PIN' has been properly sent, 'SET SEED' is supported and should return 0x9000"
+)
+@pytest.mark.test_spec("CHA_STATE_HSM2_OK_03")
+@pytest.mark.state_machine("attested2")
 def test_fsm_attested_auth_set_seed(client):
-    logger.info("CHA_STATE_HSM2_OK_03")
     configure_client_and_check_state(client)
     pin_digits = bytes([0x01, 0x02, 0x03, 0x04])
     client.set_pin(pin_digits)

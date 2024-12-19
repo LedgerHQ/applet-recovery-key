@@ -1,5 +1,8 @@
 package com.ledger.appletcharon;
 
+import org.globalplatform.upgrade.Element;
+import org.globalplatform.upgrade.UpgradeManager;
+
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
@@ -113,5 +116,21 @@ public class PINManager {
         pinBuffer = null;
         pinLength = 0;
         JCSystem.requestObjectDeletion();
+    }
+
+    static Element save(PINManager pinManager) {
+        if (pinManager == null || pinManager.getPINStatus() != PIN_STATUS_ACTIVATED) {
+            return null;
+        }
+        return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 0, (short) 1).write(pinManager.pin);
+    }
+
+    static PINManager restore(Element element) {
+        if (element == null) {
+            return null;
+        }
+        PINManager pinManager = new PINManager();
+        pinManager.pin = (OwnerPIN) element.readObject();
+        return pinManager;
     }
 }

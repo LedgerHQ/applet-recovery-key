@@ -97,12 +97,15 @@ public class Curve {
         short length = scalar.getG(ramBuffer, (short) 0);
         keyGen.generateSecret(ramBuffer, (short) 0, length, ramBuffer, pointLength);
         result.setW(ramBuffer, pointLength, length);	
+        keyGen = null;
+        JCSystem.requestObjectDeletion();
     }
 
     /**
      * Performs the scalar multiplication {scalar * inPoint}.
-     * @param[in] scalar    Curve Scalar
-     * @param[in] inPoint   Curve point
+     * 
+     * @param[in] scalar Curve Scalar
+     * @param[in] inPoint Curve point
      * @param[out] outPoint Curve point result
      */
     protected void multiply(ECPrivateKey scalar, ECPublicKey inPoint, ECPublicKey outPoint) {
@@ -114,6 +117,8 @@ public class Curve {
         short length = inPoint.getW(ramBuffer, (short) 0);
         keyGen.generateSecret(ramBuffer, (short) 0, length, ramBuffer, pointLength);
         outPoint.setW(ramBuffer, pointLength, length);
+        keyGen = null;
+        JCSystem.requestObjectDeletion();
     }
 
     /**

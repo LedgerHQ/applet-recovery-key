@@ -11,7 +11,6 @@ from .conftest import (
     SEED_LEN,
 )
 
-# from ledger_pluto.command_sender import GPCommandSender
 logger = logging.getLogger(__name__)
 
 
@@ -21,9 +20,10 @@ def check_applet_state(client):
     assert infos.transient_fsm_state == "Initialized"
 
 
-# In Attested mode before authentication, 'GET STATUS' is supported and should return 0x9000
+@pytest.mark.description("'GET STATUS' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_HSM1_OK_01")
+@pytest.mark.state_machine("attested1")
 def test_fsm_attested_no_auth_get_status(client):
-    logger.info("CHA_STATE_HSM1_01")
     # Set certificate to enter Attested mode
     client.set_issuer_key(bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
     client.get_public_key_and_verify()
@@ -32,37 +32,29 @@ def test_fsm_attested_no_auth_get_status(client):
     check_applet_state(client)
 
 
-# In Attested mode before authentication, 'GET CERTIFICATE' with P1 = 0x00 and P1 = 0x01 are supported and should return 0x9000
+@pytest.mark.description(
+    "'GET CERTIFICATE' with P1 = 0x00 and P1 = 0x01 are supported and should return 0x9000"
+)
+@pytest.mark.test_spec("CHA_STATE_HSM1_OK_02")
+@pytest.mark.state_machine("attested1")
 def test_fsm_attested_no_auth_get_cert(client):
-    logger.info("CHA_STATE_HSM1_02")
     check_applet_state(client)
     client.get_card_static_certificate_and_verify()
     client.get_card_ephemeral_certificate_and_verify()
 
 
-# In Attested mode before authentication, 'GET DATA' is supported and should return 0x9000
+@pytest.mark.description("'GET DATA' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_HSM1_OK_03")
+@pytest.mark.state_machine("attested1")
 @pytest.mark.skip("TODO: implement GET DATA command in applet first")
 def test_fsm_attested_no_auth_get_data(client):
-    logger.info("CHA_STATE_HSM1_03")
     check_applet_state(client)
 
 
-# In Attested mode before authentication, the following commands should be rejected with 0x6985
-# - GET CERTIFICATE (with P1 = 0x00)
-# - GET CERTIFICATE (with P1 = 0x01)
-# - VALIDATE CERTIFICATE (with P1 = 0x00)
-# - VALIDATE CERTIFICATE (with P1 = 0x01)
-# - SET PIN
-# - SET SEED
-# - VERIFY PIN
-# - CHANGE PIN
-# - RESTORE SEED
-# - VERIFY SEED
-# - SET DATA
-# - FACTORY RESET
+@pytest.mark.description("Unauthorized commands should be rejected with 0x6985")
+@pytest.mark.test_spec("CHA_STATE_HSM1_FAIL_01")
+@pytest.mark.state_machine("attested1")
 def test_fsm_attest_no_auth_unauthorized_cmds(client):
-    logger.info("CHA_STATE_HSM1_FAIL_01")
-
     # Dummy ephemeral keys (we don't care about the actual values, it's just so the client
     # can send the commands we want to test)
     dummy_priv_key = PrivateKey()
@@ -119,9 +111,12 @@ def test_fsm_attest_no_auth_unauthorized_cmds(client):
     # client.factory_reset()
 
 
-# In Attested mode before authentication, 'VALIDATE CERTIFICATE' with P1 = 0x00 and P1 = 0x01 are supported and should return 0x9000
+@pytest.mark.description(
+    "'VALIDATE CERTIFICATE' with P1 = 0x00 and P1 = 0x01 are supported and should return 0x9000"
+)
+@pytest.mark.test_spec("CHA_STATE_HSM1_OK_04")
+@pytest.mark.state_machine("attested1")
 def test_fsm_attested_no_auth_validate_hw_cert(client):
-    logger.info("CHA_STATE_HSM1_04")
     check_applet_state(client)
     # We need to get the card's static and ephemeral certificates first
     # (a bit redundant with test_fsm_attested_no_auth_get_cert but necessary)

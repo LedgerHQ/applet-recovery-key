@@ -7,6 +7,9 @@ package com.ledger.appletcharon;
 
 import org.globalplatform.GPSystem;
 import org.globalplatform.SecureChannel;
+import org.globalplatform.upgrade.Element;
+import org.globalplatform.upgrade.OnUpgradeListener;
+import org.globalplatform.upgrade.UpgradeManager;
 
 import javacard.framework.APDU;
 import javacard.framework.Applet;
@@ -24,7 +27,7 @@ import javacard.security.KeyBuilder;
  * @author <user>
  */
 
-public class AppletCharon extends Applet {
+public class AppletCharon extends Applet implements OnUpgradeListener {
     // Hardware wallet info
     private static final byte HW_CERT_ROLE = (byte) 0x02;
     private static final byte HW_EPH_CERT_ROLE = (byte) 0x12;
@@ -143,6 +146,54 @@ public class AppletCharon extends Applet {
 
     private static final short SECURITY_LEVEL_MASK = 0x7F;
 
+    @Override
+    public Element onSave() {
+        return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 0, (short) 6).write(serialNumber)
+                .write(PINManager.save(this.pinManager)).write(SeedManager.save(this.seedManager))
+                .write(Certificate.save(this.cardCertificate)).write(certificatePrivateKey).write(certificatePublicKey);
+    }
+
+    @Override
+    public void onCleanup() {
+        // Nothing to do
+    }
+
+    @Override
+    public void onRestore(Element root) {
+        if (root == null) {
+            return;
+        }
+        root.initRead();
+        if (root.canReadObject() == (short) 6) {
+            serialNumber = (byte[]) root.readObject();
+            PINManager pinManager = PINManager.restore((Element) root.readObject());
+            if (pinManager != null) {
+                this.pinManager = pinManager;
+            }
+            SeedManager seedManager = SeedManager.restore((Element) root.readObject());
+            if (seedManager != null) {
+                this.seedManager = seedManager;
+            }
+            Certificate cardCertificate = Certificate.restore((Element) root.readObject());
+            if (cardCertificate != null) {
+                this.cardCertificate = cardCertificate;
+            }
+            certificatePrivateKey = (ECPrivateKey) root.readObject();
+            certificatePublicKey = (ECPublicKey) root.readObject();
+        }
+    }
+
+    @Override
+    public void onConsolidate() {
+        if (certificatePrivateKey != null && certificatePublicKey != null && cardCertificate.signature != null) {
+            appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
+        }
+        if (seedManager.seedKey != null && pinManager.getPINStatus() == PINManager.PIN_STATUS_ACTIVATED) {
+            appletFSM.transition(AppletStateMachine.EVENT_SET_SEED);
+        }
+        transientFSM.setOnSelectState();
+    }
+
     /**
      * Selects the applet. Initializes the transient state machine (in locked
      * state).
@@ -233,10 +284,11 @@ public class AppletCharon extends Applet {
         ephemeralCertificate = new EphemeralCertificate(crypto, CARD_CERT_ROLE);
         capsule = new CapsuleCBC();
 
-        // Get the serial number from the install data
-        getSerialNumberFromInstallData(bArray, bOffset);
-        cardCertificate.setSerialNumber(serialNumber, (short) 0, (short) SN_LENGTH);
-
+        if (UpgradeManager.isUpgrading() == false) {
+            // Get the serial number from the install data
+            getSerialNumberFromInstallData(bArray, bOffset);
+            cardCertificate.setSerialNumber(serialNumber, (short) 0, (short) SN_LENGTH);
+        }
         register(bArray, ((short) (bOffset + 1)), bArray[bOffset]);
     }
 

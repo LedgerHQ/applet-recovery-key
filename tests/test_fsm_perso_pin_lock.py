@@ -7,11 +7,10 @@ from ledger_pluto.client import (
     CapsuleAlgorithm,
 )
 from ledger_pluto.command_sender import GPCommandSender
-from ledger_pluto.ledger_pluto import validate_reader
+from ledger_pluto.backend.jrcp_backend import JRCPBackend
 from .conftest import (
     TEST_AUTH_PRIV_KEY,
     TEST_ISSUER_PRIV_KEY,
-    READER,
     ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED,
     ENC_KEY,
     MAC_KEY,
@@ -19,30 +18,18 @@ from .conftest import (
     SEED_LEN,
 )
 
-# from ledger_pluto.command_sender import GPCommandSender
 logger = logging.getLogger(__name__)
-
-
-# def configure_client_and_check_state(client):
-#     client.get_card_static_certificate_and_verify()
-#     client.get_card_ephemeral_certificate_and_verify()
-#     client.validate_hw_static_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
-#     client.validate_hw_ephemeral_certificate()
-#     infos = client.get_status()
-#     assert infos.fsm_state == "Attested"
-#     assert infos.transient_fsm_state == "Pin_Locked"
 
 
 @pytest.fixture(scope="module", autouse=True)
 def setup_applet():
-    _, reader_obj = validate_reader(READER)
     # Create a connection to the (simulated) card
-    connection = reader_obj.createConnection()
-    connection.connect()
+    backend = JRCPBackend()
+    backend.connect()
     # Create the sender object
-    sender = GPCommandSender(ENC_KEY, MAC_KEY, connection)
+    sender = GPCommandSender(backend, ENC_KEY, MAC_KEY)
     sender.send_select(AID)
-    sender.open_scp03_secure_channel()
+    sender.open_secure_channel()
     client = CharonClient(sender, capsule_algo=CapsuleAlgorithm.AES_CBC_HMAC)
     # Set certificate to enter Attested mode and authenticate
     client.set_issuer_key(bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
@@ -56,7 +43,7 @@ def setup_applet():
     client.set_pin(pin_digits)
     seed = os.urandom(SEED_LEN)
     client.set_seed(seed)
-    connection.disconnect()
+    backend.disconnect()
 
 
 def check_applet_state(client):
@@ -65,30 +52,39 @@ def check_applet_state(client):
     assert infos.transient_fsm_state == "Pin_Locked"
 
 
-# In User Personalized mode and before authentication, 'GET STATUS' is supported and should return 0x9000
+@pytest.mark.description("'GET STATUS' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_UP_LOCKED_OK_01")
+@pytest.mark.state_machine("perso_pin_lock")
 def test_fsm_perso_pin_lock_get_status(client):
-    logger.info("CHA_STATE_UP_LOCKED_OK_01")
     # This function calls client.get_status() which verifies that GET STATUS returns 0x9000
     check_applet_state(client)
 
 
-# In User Personalized mode and before authentication, 'GET CERTIFICATE' with P1 = 0x00 and P1 = 0x01 are supported and should return 0x9000
+@pytest.mark.description(
+    "'GET CERTIFICATE' with P1 = 0x00 and P1 = 0x01 are supported and should return 0x9000"
+)
+@pytest.mark.test_spec("CHA_STATE_UP_LOCKED_OK_02")
+@pytest.mark.state_machine("perso_pin_lock")
 def test_fsm_perso_pin_lock_get_cert(client):
-    logger.info("CHA_STATE_UP_LOCKED_OK_02")
     check_applet_state(client)
     client.get_card_static_certificate_and_verify()
     client.get_card_ephemeral_certificate_and_verify()
 
 
+@pytest.mark.description("'GET DATA' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_UP_LOCKED_OK_03")
+@pytest.mark.state_machine("perso_pin_lock")
 @pytest.mark.skip("TODO: implement GET DATA command in applet first")
 def test_fsm_perso_pin_lock_get_data(client):
-    logger.info("CHA_STATE_UP_LOCKED_OK_03")
     check_applet_state(client)
 
 
-# In User Personalized mode and before authentication, 'VALIDATE CERTIFICATE' with P1 = 0x00 and P1 = 0x01 are supported and should return 0x9000
+@pytest.mark.description(
+    "'VALIDATE CERTIFICATE' with P1 = 0x00 and P1 = 0x01 are supported and should return 0x9000"
+)
+@pytest.mark.test_spec("CHA_STATE_UP_LOCKED_OK_04")
+@pytest.mark.state_machine("perso_pin_lock")
 def test_fsm_perso_pin_lock_validate_certificates(client):
-    logger.info("CHA_STATE_UP_LOCKED_OK_04")
     check_applet_state(client)
     # We need to get the card certificates again because the connection was closed
     client.get_card_static_certificate_and_verify()
@@ -97,10 +93,10 @@ def test_fsm_perso_pin_lock_validate_certificates(client):
     client.validate_hw_ephemeral_certificate()
 
 
-# In User Personalized mode and before authentication, the following commands should be rejected with 0x6985
+@pytest.mark.description("Unauthorized commands should be rejected with 0x6985")
+@pytest.mark.test_spec("CHA_STATE_UP_LOCKED_FAIL_01")
+@pytest.mark.state_machine("perso_pin_lock")
 def test_fsm_perso_pin_lock_unauthorized_cmds(client):
-    logger.info("CHA_STATE_UP_LOCKED_FAIL_01")
-
     dummy_priv_key = PrivateKey()
     dummy_pub_key = dummy_priv_key.pubkey.serialize(compressed=False)
     dummy_seed = os.urandom(SEED_LEN)

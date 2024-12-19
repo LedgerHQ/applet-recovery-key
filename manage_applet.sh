@@ -13,13 +13,14 @@ show_help() {
     echo "Usage: $0 [options]"
     echo "Options:"
     echo "  -d, --docker                   Run commands in docker container"
-    echo "  -a, --aid AID                  Set AID for the applet (default: A000000002)"
+    echo "  -a, --aid AID                  Set AID for the applet when generating CAP file (default: A000000002)"
+    echo "  -v, --version VERSION          Set applet version when generating CAP file (default: 1.0)"
     echo "  -c, --clean                    Clean build artifacts"
     echo "  -p, --path                     Set dependencies path (for local generation only)"
     echo "  -t, --tests GH_USER GH_TOKEN   Run functional tests (requires GitHub credentials if in docker with -d, --docker)" 
     echo "  -h, --help                     Show this help message"
     echo ""
-    echo "Without any options, the script will generate the CAP file locally."
+    echo "Without any options, the script will generate the CAP file locally with default AID and version."
     exit 0
 }
 
@@ -30,11 +31,13 @@ DEPS_PATH=$HOME
 update_vars() {
     OPENSSL_PATH="$DEPS_PATH/openssl"
     GP_API_PATH="$DEPS_PATH/GlobalPlatform_Card_API-org.globalplatform-v1.7.1"
+    UPGRADE_API_PATH="./deps"
     JCDK_PATH="$DEPS_PATH/java_card_devkit"
-    JCSIM_PATH="$DEPS_PATH/java_card_simulator"
+    JCSIM_PATH="$DEPS_PATH/jcop_simulator"
     JCAPI_PATH="$JCDK_PATH/lib/api_classic-3.0.5.jar"
     JCAPI_ANNOTATIONS_PATH=$JCDK_PATH"/lib/api_classic_annotations-3.0.5.jar"
     AID="A000000002"
+    VERSION="1.0"
     GP_API_URL="https://globalplatform.org/wp-content/themes/globalplatform/ajax/file-download.php?f=https://globalplatform.org/wp-content/uploads/2019/07/GlobalPlatform_Card_API-org.globalplatform-v1.7.1.zip"
     JAVA_HOME="/usr/java/jdk-17-oracle-x64"
 }
@@ -109,10 +112,10 @@ check_dependencies() {
         exit 1
     fi
 
-    # Check for JavaCard Simulator
+    # Check for NXP JCOP simulator
     if [ ! -d $JCSIM_PATH ]; then
-        red "Error: JavaCard Simulator not found in $JCSIM_PATH"
-        red "Please ensure JavaCard Simulator is properly installed in $JCSIM_PATH"
+        red "Error: NXP JCOP Simulator not found in $JCSIM_PATH"
+        red "Please ensure NXP JCOP Simulator is properly installed in $JCSIM_PATH"
         exit 1
     fi
 
@@ -169,7 +172,7 @@ setup_docker_and_generate_cap() {
     fi
     
     yellow "Generate cap in container..."
-    run_in_docker "$(declare -f check_dependencies) && $(declare -f generate_cap) && generate_cap true $USER_AID" "Build in container failed"
+    run_in_docker "$(declare -f check_dependencies) && $(declare -f generate_cap) && generate_cap true $USER_AID $USER_VERSION" "Build in container failed"
 }
 
 # Format from AABBCCDD to 0xAA:0xBB:0xCC:0xDD with sed
@@ -181,6 +184,7 @@ format_aid_string() {
 generate_cap() {
     local inside_docker=$1
     local user_aid=$2
+    local user_version=$3
     if [ "$inside_docker" = true ]; then
         DEPS_PATH=$HOME
         update_vars
@@ -188,6 +192,10 @@ generate_cap() {
 
     if [ -n "$user_aid" ]; then
         AID=$user_aid
+    fi
+
+    if [ -n "$user_version" ]; then
+        VERSION=$user_version
     fi
 
     check_dependencies
@@ -198,7 +206,7 @@ generate_cap() {
     yellow "Compiling Java sources..."
     if ! $JAVA_HOME/bin/javac -source 7 -target 7 -g \
         -cp $JCAPI_PATH \
-        -cp "$JCAPI_PATH:$JCAPI_ANNOTATIONS_PATH:$GP_API_PATH/1.5/gpapi-globalplatform.jar" \
+        -cp "$JCAPI_PATH:$JCAPI_ANNOTATIONS_PATH:$GP_API_PATH/1.5/gpapi-globalplatform.jar:$UPGRADE_API_PATH/gpapi-upgrade.jar" \
         -d bin src/com/ledger/appletcharon/*.java; then
         red "Error: Java compilation failed"
         exit 1
@@ -212,13 +220,13 @@ generate_cap() {
     yellow "Running CAP converter..."
     if ! $JCDK_PATH/bin/converter.sh -i \
         -classdir ./bin \
-        -exportpath $GP_API_PATH/1.5/exports \
+        -exportpath $GP_API_PATH/1.5/exports:$UPGRADE_API_PATH/exports \
         -applet $FORMATTED_AID com.ledger.appletcharon.AppletCharon \
         -out CAP JCA EXP \
         -d ./deliverables/applet-charon \
         -debug \
         -target 3.0.5 \
-        com.ledger.appletcharon $FORMATTED_AID:0x00 1.0; then
+        com.ledger.appletcharon $FORMATTED_AID:0x00 $VERSION; then
         red "Error: CAP conversion failed"
         exit 1
     fi
@@ -291,21 +299,11 @@ run_tests()
         pdm lock -G local
         pdm install -G local
     fi
-    
-    # Get the gp.jar
-    yellow "Downloading gp.jar..."
-    curl -L -o gp.jar https://github.com/martinpaljak/GlobalPlatformPro/releases/latest/download/gp.jar
-    # Run pcscd if not already running
-    if [ ! -e /var/run/pcscd/pcscd.comm ]; then
-        yellow "Starting pcscd service..."
-        sudo systemctl stop pcscd
-        pcscd
-    fi
 
-    # Run the JavaCard simulator
-    if ! pgrep -x "jcsl" > /dev/null; then
-        yellow "Starting JavaCard simulator..."
-        $JCSIM_PATH/runtime/bin/jcsl -log_level=finest > $HOME/sim.log 2>&1 &
+    # Run the NXP JCOP simulator
+    if ! pgrep -x "jcop" > /dev/null; then
+        yellow "Starting NXP JCOP simulator..."
+        $JCSIM_PATH/linux/jcop > $HOME/sim.log 2>&1 &
     fi
     # Activate the virtual environment and run the tests
     yellow "Running tests..."
@@ -357,6 +355,15 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        -v|--version)
+            if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+                USER_VERSION=$2
+                shift 2
+            else
+                red "Error: -v|--version requires a valid VERSION argument."
+                exit 1
+            fi
+            ;;
         -p|--path)
             if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
                 DEPS_PATH=$2
@@ -377,6 +384,10 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [ ! -n "$USER_AID" ]; then
+    USER_AID=$AID
+fi
+
 # Execute requested operations
 if [ "$DOCKER" = true ]; then
     if [ "$TESTS" = true ]; then
@@ -388,6 +399,6 @@ else
     if [ "$TESTS" = true ]; then
         run_tests false
     else
-        generate_cap false $USER_AID
+        generate_cap false $USER_AID $USER_VERSION
     fi
 fi

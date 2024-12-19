@@ -2,6 +2,7 @@ import os
 import logging
 import pytest
 import functools
+from io import StringIO
 from typing import Generator, Tuple
 from ledger_pluto.client import CharonClient, CapsuleAlgorithm
 from ledger_pluto.command_sender import GPCommandSender
@@ -31,8 +32,68 @@ CAP_FILE = (
 INSTALL_PARAMS = "DEADBEEF"
 ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED = "Status Word: 0x6985"
 SEED_LEN = 32
-
-logger = logging.getLogger()
+TEST_CATEGORIES = [
+    (
+        "state_machine",
+        [
+            "fabrication",
+            "attested1",
+            "attested2",
+            "perso_pin_lock",
+            "perso_auth",
+            "perso_pin_unlock",
+        ],
+    ),
+    ("secure_channels", [""]),
+    ("commands", [""]),
+    ("generic", [""]),
+    ("platform", [""]),
+]
+TEST_CATEGORY_DESCRIPTIONS = {
+    (
+        "state_machine",
+        "fabrication",
+    ): (
+        "Fabrication",
+        "Tests that verify the behavior of the applet in Fabrication persistent state",
+    ),
+    (
+        "state_machine",
+        "attested1",
+    ): (
+        "Attested - No Authentication",
+        "Tests that verify the behavior of the applet in Attested persistent state without authentication (without opening a Ledger secure channel)",
+    ),
+    (
+        "state_machine",
+        "attested2",
+    ): (
+        "Attested - Authenticated",
+        "Tests that verify the behavior of the applet in Attested persistent state with authentication (after opening a Ledger secure channel)",
+    ),
+    (
+        "state_machine",
+        "perso_pin_lock",
+    ): (
+        "User Personalized - Pin Locked",
+        "Tests that verify the behavior of the applet in User Personalized persistent state before authentication",
+    ),
+    (
+        "state_machine",
+        "perso_auth",
+    ): (
+        "User Personalized - Authenticated",
+        "Tests that verify the behavior of the applet in User Personalized persistent state after authentication and before PIN verification",
+    ),
+    (
+        "state_machine",
+        "perso_pin_unlock",
+    ): (
+        "User Personalized - Pin Unlocked",
+        "Tests that verify the behavior of the applet in User Personalized persistent state after authentication and after PIN verification",
+    ),
+}
+TEST_DOC_URL = "https://ledgerhq.atlassian.net/wiki/spaces/FW/pages/5027168270/Charon+-+Tech+-+Test+Plan+-+Applet#Charon---{category}"
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -94,70 +155,29 @@ def get_test_description(item):
     return ""
 
 
-TEST_CATEGORIES = [
-    (
-        "state_machine",
-        [
-            "fabrication",
-            "attested1",
-            "attested2",
-            "perso_pin_lock",
-            "perso_auth",
-            "perso_pin_unlock",
-        ],
-    ),
-    ("secure_channels", [""]),
-    ("commands", [""]),
-    ("generic", [""]),
-    ("platform", [""]),
-]
+class LogCapture:
+    """Capture log messages during test execution"""
 
-TEST_CATEGORY_DESCRIPTIONS = {
-    (
-        "state_machine",
-        "fabrication",
-    ): (
-        "Fabrication",
-        "Tests that verify the behavior of the applet in Fabrication persistent state",
-    ),
-    (
-        "state_machine",
-        "attested1",
-    ): (
-        "Attested - No Authentication",
-        "Tests that verify the behavior of the applet in Attested persistent state without authentication (without opening a Ledger secure channel)",
-    ),
-    (
-        "state_machine",
-        "attested2",
-    ): (
-        "Attested - Authenticated",
-        "Tests that verify the behavior of the applet in Attested persistent state with authentication (after opening a Ledger secure channel)",
-    ),
-    (
-        "state_machine",
-        "perso_pin_lock",
-    ): (
-        "User Personalized - Pin Locked",
-        "Tests that verify the behavior of the applet in User Personalized persistent state before authentication",
-    ),
-    (
-        "state_machine",
-        "perso_auth",
-    ): (
-        "User Personalized - Authenticated",
-        "Tests that verify the behavior of the applet in User Personalized persistent state after authentication and before PIN verification",
-    ),
-    (
-        "state_machine",
-        "perso_pin_unlock",
-    ): (
-        "User Personalized - Pin Unlocked",
-        "Tests that verify the behavior of the applet in User Personalized persistent state after authentication and after PIN verification",
-    ),
-}
+    def __init__(self):
+        self.log_capture = StringIO()
+        self.handler = logging.StreamHandler(self.log_capture)
 
-TEST_DOC_URL = "https://ledgerhq.atlassian.net/wiki/spaces/FW/pages/5027168270/Charon+-+Tech+-+Test+Plan+-+Applet#Charon---{category}"
+    def __enter__(self):
+        logging.getLogger().addHandler(self.handler)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        logging.getLogger().removeHandler(self.handler)
+
+    def get_logs(self):
+        return self.log_capture.getvalue()
+
+
+@pytest.fixture(autouse=True)
+def log_capture():
+    """Fixture to capture logs for each test"""
+    with LogCapture() as capture:
+        yield capture
 
 
 def get_test_category_and_subcategory(item) -> Tuple[str, str, str, str]:
@@ -203,6 +223,23 @@ def pytest_configure(config):
     config.subcategory_titles = {}
 
 
+def create_details_cell(content: str) -> str:
+    """
+    Create a properly formatted details cell for markdown tables.
+    Ensures proper escaping and formatting of the content.
+    """
+    if not content or content == "-":
+        return "-"
+
+    # Escape any pipe characters in the content
+    content = content.replace("|", "\\|")
+
+    # Replace newlines with <br> tags to keep content in one line
+    content = content.replace("\n", "<br>")
+
+    return f"<details><summary>Details</summary><pre>{content}</pre></details>"
+
+
 def pytest_runtest_makereport(item, call):
     """
     Generate a summary for each test case in markdown tables by subcategory
@@ -215,14 +252,18 @@ def pytest_runtest_makereport(item, call):
         )
         description = get_test_description(item)
 
+        # Get the captured logs
+        log_capture = item.funcargs.get("log_capture")
+        logs = log_capture.get_logs() if log_capture else ""
+
         if call.excinfo:
             status = "❌ Failed"
             duration = f"{call.stop - call.start:.2f}s"
-            details = str(call.excinfo.value)
+            details = f"Error:\n{str(call.excinfo.value)}\n\nLogs:\n{logs}"
         else:
             status = "✅ Passed"
             duration = f"{call.stop - call.start:.2f}s"
-            details = ""
+            details = logs if logs.strip() else "-"
 
         # Use category-subcategory pair as key
         subcategory_key = f"{category}:{subcategory}" if subcategory else category
@@ -232,11 +273,9 @@ def pytest_runtest_makereport(item, call):
             item.config.subcategory_descriptions[subcategory_key] = category_description
             item.config.subcategory_titles[subcategory_key] = subcategory_title
 
-        details_cell = (
-            f"<details><summary>Error</summary>\n\n```\n{details}\n```\n</details>"
-            if details
-            else "-"
-        )
+        # Only show details dropdown if there's content
+        details_cell = create_details_cell(details)
+
         test_row = f"| {test_spec_name} | {item.name} | {status} | {duration} | {description} | {details_cell} |"
         item.config.subcategory_tables[subcategory_key].append(test_row)
 
@@ -276,7 +315,7 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
                         f.write(f"{description}\n")
 
                     f.write(
-                        "| Test Specification | Function Name | Status | Duration | Description | Details |\n"
+                        "| Test Specification | Function Name | Status | Duration | Description | Logs |\n"
                     )
                     f.write(
                         "|-------------------|--------------|--------|----------|-------------|----------|\n"

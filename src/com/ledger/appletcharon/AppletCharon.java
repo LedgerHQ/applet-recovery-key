@@ -185,6 +185,10 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
 
     @Override
     public void onConsolidate() {
+        seedManager.setCryptoUtil(crypto);
+        if (this.cardCertificate.serialNumber == null) {
+            this.cardCertificate.setSerialNumber(serialNumber, (short) 0, (short) SN_LENGTH);
+        }
         if (certificatePrivateKey != null && certificatePublicKey != null && cardCertificate.signature != null) {
             appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
         }
@@ -279,7 +283,8 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
         secureChannel = null;
         pinManager = new PINManager();
         crypto = new CryptoUtil();
-        seedManager = new SeedManager(crypto);
+        seedManager = new SeedManager();
+        seedManager.setCryptoUtil(crypto);
         cardCertificate = new Certificate(CARD_CERT_ROLE);
         ephemeralCertificate = new EphemeralCertificate(crypto, CARD_CERT_ROLE);
         capsule = new CapsuleCBC();

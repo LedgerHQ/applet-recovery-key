@@ -30,16 +30,18 @@ public class SeedManager {
     private byte[] tempBuffer;
     private byte[] derivationBuffer;
 
-    public SeedManager(CryptoUtil cryptoUtil) {
-        // Initialize crypto utility
-        crypto = cryptoUtil;
-        // Initialize the HMAC key object with the correct length
+    public SeedManager() {
+        crypto = null;
         seedKey = null;
         // Initialize HMAC-SHA512
         hmacSha512 = Signature.getInstance(Signature.ALG_HMAC_SHA_512, false);
         // Initialize temporary buffers in transient memory
         tempBuffer = JCSystem.makeTransientByteArray((short) 128, JCSystem.CLEAR_ON_DESELECT);
         derivationBuffer = JCSystem.makeTransientByteArray((short) 64, JCSystem.CLEAR_ON_DESELECT);
+    }
+
+    public void setCryptoUtil(CryptoUtil cryptoUtil) {
+        crypto = cryptoUtil;
     }
 
     protected void setSeed(byte[] seed_data) {

@@ -22,7 +22,7 @@ public class Certificate {
     // Serial number associated to issuerPublicKey
     private byte[] batchSerial = null;
     // Card serial number
-    private byte[] serialNumber = null;
+    protected byte[] serialNumber = null;
     // Card serial number length
     private short serialNumberLength;
     // Card public key

@@ -185,6 +185,10 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
 
     @Override
     public void onConsolidate() {
+        seedManager.setCryptoUtil(crypto);
+        if (this.cardCertificate.serialNumber == null) {
+            this.cardCertificate.setSerialNumber(serialNumber, (short) 0, (short) SN_LENGTH);
+        }
         if (certificatePrivateKey != null && certificatePublicKey != null && cardCertificate.signature != null) {
             appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
         }
@@ -278,8 +282,9 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
         transientFSM = new TransientStateMachine(appletFSM);
         secureChannel = null;
         pinManager = new PINManager();
-        seedManager = new SeedManager();
         crypto = new CryptoUtil();
+        seedManager = new SeedManager();
+        seedManager.setCryptoUtil(crypto);
         cardCertificate = new Certificate(CARD_CERT_ROLE);
         ephemeralCertificate = new EphemeralCertificate(crypto, CARD_CERT_ROLE);
         capsule = new CapsuleCBC();
@@ -832,9 +837,20 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
         return 0;
     }
 
-    private short restoreSeed(byte[] buffer) {
+    private short restoreSeed(byte[] buffer, short dataLength) {
         if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        // Check data length
+        if (dataLength == 0 || buffer[ISO7816.OFFSET_LC] == 0) {
+            ISOException.throwIt(SW_MISSING_SCP_LEDGER);
+        }
+        if (buffer[ISO7816.OFFSET_LC] != buffer[ISO7816.OFFSET_CDATA] + 1) {
+            ISOException.throwIt(SW_WRONG_LENGTH);
+        }
+        // Check MAC
+        if (!capsule.checkMAC(buffer, (short) 0, (short) (APDU_HEADER_SIZE - 1), (short) ISO7816.OFFSET_CDATA)) {
+            ISOException.throwIt(SW_INCORRECT_SCP_LEDGER);
         }
         // Restore seed to ramBuffer
         byte seedLength = seedManager.restoreSeed(ramBuffer, (short) 1);
@@ -848,10 +864,19 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
         if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] < TransientStateMachine.STATE_AUTHENTICATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
+        // Check data length
+        if (cdatalength == 0 || buffer[ISO7816.OFFSET_LC] == 0) {
+            ISOException.throwIt(SW_MISSING_SCP_LEDGER);
+        }
         // Check cData length field is correct (cdatalength is the APDU length including
         // header)
-        if (buffer[ISO7816.OFFSET_LC] != 0 || cdatalength != buffer[ISO7816.OFFSET_LC] + APDU_HEADER_SIZE) {
+        if ((cdatalength != buffer[ISO7816.OFFSET_LC] + APDU_HEADER_SIZE)
+                || (buffer[ISO7816.OFFSET_LC] != buffer[ISO7816.OFFSET_CDATA] + 1)) {
             ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        // Check MAC
+        if (!capsule.checkMAC(buffer, (short) 0, (short) (APDU_HEADER_SIZE - 1), (short) ISO7816.OFFSET_CDATA)) {
+            ISOException.throwIt(SW_INCORRECT_SCP_LEDGER);
         }
         // Extract tag of data as short from P1 / P2
         short tag = (short) (((short) buffer[ISO7816.OFFSET_P1] << 8) | (short) buffer[ISO7816.OFFSET_P2]);
@@ -905,6 +930,26 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
         cardName = new byte[nameLength];
         Util.arrayCopyNonAtomic(ramBuffer, (short) 1, cardName, (short) 0, nameLength);
         return 0;
+    }
+
+    private short verifySeed(byte[] buffer, short cdatalength) {
+        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        if (cdatalength == 0 || buffer[ISO7816.OFFSET_LC] == 0) {
+            ISOException.throwIt(SW_MISSING_SCP_LEDGER);
+        }
+        if (cdatalength != buffer[ISO7816.OFFSET_LC] + APDU_HEADER_SIZE) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        capsule.decryptData(buffer, ISO7816.OFFSET_CDATA, (short) (buffer[ISO7816.OFFSET_LC] & 0x00FF), ramBuffer, (short) 0);
+        short challengeLength = (short) (ramBuffer[0] & 0x00FF);
+        // Sign challenge
+        short signatureLength = seedManager.signChallenge(ramBuffer, (short) 1, challengeLength, ramBuffer, (short) (2 + challengeLength));
+        ramBuffer[(short) ((1 + challengeLength) & 0x00FF)] = (byte) signatureLength;
+        // Encrypt signature
+        return capsule.encryptData(ramBuffer, (short) ((challengeLength + 1) & 0x00FF), (short) ((signatureLength + 1) & 0x00FF), buffer,
+                (short) 0);
     }
 
     /**
@@ -990,13 +1035,10 @@ public class AppletCharon extends Applet implements OnUpgradeListener {
             cdatalength = setSeed(buffer);
             break;
         case INS_RESTORE_SEED:
-            cdatalength = restoreSeed(buffer);
+            cdatalength = restoreSeed(buffer, cdatalength);
             break;
         case INS_VERIFY_SEED:
-            if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
-                ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
-            }
-            // TODO: Implement seed verification
+            cdatalength = verifySeed(buffer, cdatalength);
             break;
         case INS_GET_DATA:
             cdatalength = getData(buffer, cdatalength);

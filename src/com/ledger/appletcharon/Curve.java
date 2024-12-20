@@ -67,6 +67,15 @@ public class Curve {
     }
 
     /**
+     * Gets the curve order.
+     * 
+     * @return R Curve order
+     */
+    protected byte[] getR() {
+        return R;
+    }
+
+    /**
      * Sets the key curve parameters.
      * @param[in] key Elliptic curve private or public key
      */

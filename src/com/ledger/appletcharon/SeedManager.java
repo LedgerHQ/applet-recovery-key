@@ -21,7 +21,7 @@ public class SeedManager {
     private static final byte[] BITCOIN_SEED = { 'B', 'i', 't', 'c', 'o', 'i', 'n', ' ', 's', 'e', 'e', 'd' };
     private static final int DERIVATION_PATH_INDEX_1 = 0x80000000;
     private static final int DERIVATION_PATH_INDEX_2 = 0x82000000;
-    private static final int DERIVATION_PATH_INDEX_3 = 0x00000001;
+    private static final int DERIVATION_PATH_INDEX_3 = 0x80000001;
     private static final byte DERIVATION_KEY_LENGTH = 16;
 
     protected AESKey seedKey;

@@ -33,6 +33,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     private static final byte HW_CERT_ROLE = (byte) 0x02;
     private static final byte HW_EPH_CERT_ROLE = (byte) 0x12;
     private static final byte HW_SN_LENGTH = 7;
+    private byte[] hwSerialNumber;
     // Applet / Card info
     private static final byte CARD_CERT_ROLE = (byte) 0x0A;
     private static final byte APPLET_MAJOR_VERSION = (byte) 0x00;
@@ -663,6 +664,10 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         if (hwSNLength != HW_SN_LENGTH) {
             ISOException.throwIt(ISO7816.SW_WRONG_DATA);
         }
+        if (hwSerialNumber == null) {
+            hwSerialNumber = JCSystem.makeTransientByteArray(HW_SN_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+        }
+        Util.arrayCopy(buffer, offset, hwSerialNumber, (short) 0, hwSNLength);
         Util.arrayCopy(buffer, offset, ramBuffer, (short) 1, hwSNLength);
         offset += hwSNLength;
         // Copy HW public key to ramBuffer
@@ -718,7 +723,34 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
                 hwEphemeralCertSignatureLength)) {
             ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         } else {
-            // Generate encryption session key
+            // Generate fixed info and session keys
+            // Set fixed info offset
+            short fixedInfoInitialOffset = (short) (1 + hostChallengeLength + cardChallengeLength + hwEphemeralPublicKeyLength);
+            short fixedInfoOffset = fixedInfoInitialOffset;
+            // Put fixed info in ramBuffer after other data
+            ramBuffer[fixedInfoOffset] = ((CapsuleCBC.KEY_LENGTH * 8) >> 8);
+            ramBuffer[(short) (fixedInfoOffset + 1)] = ((CapsuleCBC.KEY_LENGTH * 8) & 0xFF);
+            fixedInfoOffset += 2;
+            // Put host challenge length and value
+            ramBuffer[fixedInfoOffset++] = (byte) hostChallengeLength;
+            Util.arrayCopy(ramBuffer, (short) 1, ramBuffer, fixedInfoOffset, hostChallengeLength);
+            // Put card challenge length and value
+            fixedInfoOffset += hostChallengeLength;
+            ramBuffer[fixedInfoOffset++] = (byte) cardChallengeLength;
+            Util.arrayCopy(ramBuffer, (short) (1 + hostChallengeLength), ramBuffer, fixedInfoOffset, cardChallengeLength);
+            // Put host serial number length and value
+            fixedInfoOffset += cardChallengeLength;
+            ramBuffer[fixedInfoOffset++] = HW_SN_LENGTH;
+            Util.arrayCopy(hwSerialNumber, (short) 0, ramBuffer, fixedInfoOffset, HW_SN_LENGTH);
+            // Put card serial number length and value
+            fixedInfoOffset += HW_SN_LENGTH;
+            ramBuffer[fixedInfoOffset++] = SN_LENGTH;
+            Util.arrayCopy(serialNumber, (short) 0, ramBuffer, fixedInfoOffset, SN_LENGTH);
+            fixedInfoOffset += SN_LENGTH;
+            short fixedInfoLength = (short) (fixedInfoOffset - fixedInfoInitialOffset);
+            // Set fixed info in capsule
+            capsule.setFixedInfo(ramBuffer, fixedInfoInitialOffset, fixedInfoLength);
+            // Generate encryption and MAC session keys
             capsule.generateSessionKeys(ramBuffer, (short) (1 + hostChallengeLength + cardChallengeLength), hwEphemeralPublicKeyLength,
                     ephemeralCertificate.getPrivateKey());
         }

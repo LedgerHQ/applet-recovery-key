@@ -838,6 +838,11 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         {
             ISOException.throwIt(SW_INCORRECT_SCP_LEDGER);
         }
+        // Reset card name if any
+        if (cardName != null) {
+            cardName = null;
+            JCSystem.requestObjectDeletion();
+        }
         // Reset PIN
         pinManager.resetPIN();
         // Clear seed

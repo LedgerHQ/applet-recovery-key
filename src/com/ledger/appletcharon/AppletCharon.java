@@ -957,9 +957,19 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         }
         capsule.decryptData(buffer, ISO7816.OFFSET_CDATA, (short) (buffer[ISO7816.OFFSET_LC] & 0x00FF), ramBuffer, (short) 0);
         byte nameLength = ramBuffer[0];
-        if (nameLength < MIN_CARD_NAME_LENGTH || nameLength > MAX_CARD_NAME_LENGTH) {
+        // Erase card name if nameLength is 0
+        if (nameLength == 0) {
+            if (cardName != null) {
+                cardName = null;
+                JCSystem.requestObjectDeletion();
+            }
+            return 0;
+        }
+        // Throw exception if name is too long
+        if (nameLength > MAX_CARD_NAME_LENGTH) {
             ISOException.throwIt(ISO7816.SW_WRONG_DATA);
         }
+        // Set card name
         if (cardName != null) {
             cardName = null;
             JCSystem.requestObjectDeletion();

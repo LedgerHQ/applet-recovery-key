@@ -32,7 +32,7 @@ def setup_applet():
     sender.open_secure_channel()
     client = CharonClient(sender, capsule_algo=CapsuleAlgorithm.AES_CBC_HMAC)
     # Set certificate to enter Attested mode and authenticate
-    client.set_issuer_key(bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
+    client.set_issuer_key(AID, bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
     client.get_public_key_and_verify()
     client.set_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
     client.get_card_static_certificate_and_verify()

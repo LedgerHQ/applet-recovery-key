@@ -9,6 +9,7 @@ from .conftest import (
     TEST_ISSUER_PRIV_KEY,
     ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED,
     SEED_LEN,
+    AID
 )
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ def configure_client_and_check_state(client):
 @pytest.mark.state_machine("attested2")
 def test_fsm_attested_auth_get_status(client):
     # Set certificate to enter Attested mode and authenticate
-    client.set_issuer_key(bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
+    client.set_issuer_key(AID, bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
     client.get_public_key_and_verify()
     client.set_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
     client.get_card_static_certificate_and_verify()

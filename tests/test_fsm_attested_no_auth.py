@@ -9,6 +9,7 @@ from .conftest import (
     TEST_ISSUER_PRIV_KEY,
     ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED,
     SEED_LEN,
+    AID
 )
 
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ def check_applet_state(client):
 @pytest.mark.state_machine("attested1")
 def test_fsm_attested_no_auth_get_status(client):
     # Set certificate to enter Attested mode
-    client.set_issuer_key(bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
+    client.set_issuer_key(AID, bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
     client.get_public_key_and_verify()
     client.set_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
     # This function calls client.get_status() which verifies that GET STATUS returns 0x9000

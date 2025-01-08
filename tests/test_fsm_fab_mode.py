@@ -9,6 +9,7 @@ from .conftest import (
     TEST_ISSUER_PRIV_KEY,
     ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED,
     SEED_LEN,
+    AID
 )
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ def check_applet_state(client):
 
 
 def configure_client_and_check_state(client):
-    client.set_issuer_key(bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
+    client.set_issuer_key(AID, bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
     check_applet_state(client)
     client.get_public_key_and_verify()
 

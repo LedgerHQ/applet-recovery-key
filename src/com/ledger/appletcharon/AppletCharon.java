@@ -48,6 +48,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     private static final byte MAX_CARD_NAME_LENGTH = 32;
 
     private PINManager pinManager;
+    private boolean[] isPinVerifiedForUpgrade;
     private SeedManager seedManager;
 
     // Static certificate keys.
@@ -166,9 +167,14 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
 
     @Override
     public Element onSave() {
-        return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 0, (short) 6).write(serialNumber)
-                .write(PINManager.save(this.pinManager)).write(SeedManager.save(this.seedManager))
-                .write(Certificate.save(this.cardCertificate)).write(certificatePrivateKey).write(certificatePublicKey);
+        if (isPinVerifiedForUpgrade[0]) {
+            return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 0, (short) 6).write(serialNumber)
+                    .write(PINManager.save(this.pinManager)).write(SeedManager.save(this.seedManager))
+                    .write(Certificate.save(this.cardCertificate)).write(certificatePrivateKey).write(certificatePublicKey);
+        } else {
+            ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+            return null;
+        }
     }
 
     @Override
@@ -312,6 +318,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         crypto.getCurve().setCurveParameters(issuerKey);
 
         if (UpgradeManager.isUpgrading() == false) {
+            isPinVerifiedForUpgrade = JCSystem.makeTransientBooleanArray((short) 1, JCSystem.CLEAR_ON_RESET);
             // Get the serial number from the install data
             getSerialNumberFromInstallData(bArray, bOffset);
             cardCertificate.setSerialNumber(serialNumber, (short) 0, (short) SN_LENGTH);
@@ -781,6 +788,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         // Verify PIN
         pinVerified = pinManager.verifyPIN(ramBuffer);
         if (!pinVerified) {
+            isPinVerifiedForUpgrade[0] = false;
             triesRemaining = pinManager.getTriesRemaining();
             if (triesRemaining == 0) {
                 // Reset PIN, Seed and FSM
@@ -792,6 +800,8 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             } else {
                 ISOException.throwIt((short) (SW_PIN_COUNTER_CHANGED + triesRemaining));
             }
+        } else {
+            isPinVerifiedForUpgrade[0] = true;
         }
         // Set FSM state
         transientFSM.transition(TransientStateMachine.EVENT_PIN_VERIFIED);

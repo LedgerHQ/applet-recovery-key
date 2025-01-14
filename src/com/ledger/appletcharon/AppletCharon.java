@@ -791,6 +791,11 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             isPinVerifiedForUpgrade[0] = false;
             triesRemaining = pinManager.getTriesRemaining();
             if (triesRemaining == 0) {
+                // Reset card name if any
+                if (cardName != null) {
+                    cardName = null;
+                    JCSystem.requestObjectDeletion();
+                }
                 // Reset PIN, Seed and FSM
                 pinManager.resetPIN();
                 seedManager.clearSeed();

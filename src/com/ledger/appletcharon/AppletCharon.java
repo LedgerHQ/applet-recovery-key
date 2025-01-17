@@ -1013,6 +1013,15 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         byte securityLevel;
         short dgi;
 
+        // Get current persistent and transient states
+        byte pState = appletFSM.getCurrentState();
+        byte tState = transientFSM.getCurrentState();
+
+        // Check FSM states
+        if (pState != AppletStateMachine.STATE_FABRICATION || tState != TransientStateMachine.STATE_IDLE) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+
         secureChannel = GPSystem.getSecureChannel();
         securityLevel = secureChannel.getSecurityLevel();
 

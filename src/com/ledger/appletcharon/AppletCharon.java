@@ -235,15 +235,14 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             hwStaticCertificatePublicKey = null;
             JCSystem.requestObjectDeletion();
         }
-        // Reset RAM pin buffer to null
-        if (pinManager != null) {
-            pinManager.clearPINFromRam();
-        }
         transientFSM.setOnSelectState();
         // Dedicate some RAM
         if (ramBuffer == null) {
             ramBuffer = JCSystem.makeTransientByteArray(RAM_BUFFER_SIZE, JCSystem.CLEAR_ON_DESELECT);
         }
+        // Clear PIN if personalization was not completed in the previous session
+        // (PIN was set but not the seed)
+        pinManager.unsetPIN();
         return true;
     }
 

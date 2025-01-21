@@ -44,7 +44,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     private byte[] serialNumber;
     private static final byte SN_LENGTH = 4;
     private byte[] cardName;
-    private static final byte MIN_CARD_NAME_LENGTH = 1;
+    private byte cardNameLength;
     private static final byte MAX_CARD_NAME_LENGTH = 32;
 
     private PINManager pinManager;
@@ -56,6 +56,8 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     private ECPublicKey certificatePublicKey;
     private ECPrivateKey issuerKey;
     private byte[] hwStaticCertificatePublicKey;
+    private static final short MAX_HW_PUBLIC_KEY_LENGTH = 65;
+    private short hwStaticCertificatePublicKeyLength;
 
     private SecureChannel secureChannel;
     private CryptoUtil crypto;
@@ -160,10 +162,10 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     // Data Grouping Identifier for key value
     private static final short DGI_TAG_KEY_VALUE = (short) 0x8137;
     // Key usage: digital signature
-    private static final byte KEY_USAGE_SIGNATURE = (byte)0x02;
+    private static final byte KEY_USAGE_SIGNATURE = (byte) 0x02;
     // Type: ECC private key
-    private static final byte KEY_TYPE_PRIVATE_ECC = (byte)0xB1;
-    private static final byte KEY_VERSION_01 = (byte)0x01;
+    private static final byte KEY_TYPE_PRIVATE_ECC = (byte) 0xB1;
+    private static final byte KEY_VERSION_01 = (byte) 0x01;
 
     @Override
     public Element onSave() {
@@ -229,17 +231,8 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     @Override
     public boolean select() {
         secureChannel = null;
-        // Reset certificate public key to null (CLEAR_ON_DESELECT only resets value to
-        // 0)
-        if (hwStaticCertificatePublicKey != null) {
-            hwStaticCertificatePublicKey = null;
-            JCSystem.requestObjectDeletion();
-        }
+        hwStaticCertificatePublicKeyLength = 0;
         transientFSM.setOnSelectState();
-        // Dedicate some RAM
-        if (ramBuffer == null) {
-            ramBuffer = JCSystem.makeTransientByteArray(RAM_BUFFER_SIZE, JCSystem.CLEAR_ON_DESELECT);
-        }
         // Clear PIN if personalization was not completed in the previous session
         // (PIN was set but not the seed)
         pinManager.unsetPIN();
@@ -315,6 +308,10 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         crypto.initCurve(CryptoUtil.SECP256K1);
         issuerKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, crypto.getCurve().getCurveLength(), false);
         crypto.getCurve().setCurveParameters(issuerKey);
+        ramBuffer = JCSystem.makeTransientByteArray(RAM_BUFFER_SIZE, JCSystem.CLEAR_ON_DESELECT);
+        hwSerialNumber = JCSystem.makeTransientByteArray(HW_SN_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+        hwStaticCertificatePublicKey = JCSystem.makeTransientByteArray(MAX_HW_PUBLIC_KEY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+        cardName = new byte[MAX_CARD_NAME_LENGTH];
         isPinVerifiedForUpgrade = JCSystem.makeTransientBooleanArray((short) 1, JCSystem.CLEAR_ON_RESET);
 
         if (UpgradeManager.isUpgrading() == false) {
@@ -385,6 +382,20 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
      * @return the new offset after writing the TLV field
      */
     private short buildTLVField(byte[] tlvFields, short offset, Object tag, byte[] value) {
+        return buildTLVField(tlvFields, offset, tag, value, (short) value.length);
+    }
+
+    /**
+     * Constructs a single TLV field with the given tag and value.
+     *
+     * @param tlvFields the byte array to write the TLV field to
+     * @param offset    the starting offset to write the TLV field
+     * @param tag       the tag (byte or short) for the TLV field
+     * @param value     the value bytes for the TLV field
+     * @param length    the length of the value bytes to write
+     * @return the new offset after writing the TLV field
+     */
+    private short buildTLVField(byte[] tlvFields, short offset, Object tag, byte[] value, short length) {
         if (tag instanceof byte[]) {
             byte[] tagarray = (byte[]) tag;
             tlvFields[offset++] = (byte) tagarray[0];
@@ -396,7 +407,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         }
         tlvFields[offset++] = (byte) value.length;
-        Util.arrayCopyNonAtomic(value, (short) 0, tlvFields, offset, (short) value.length);
+        Util.arrayCopyNonAtomic(value, (short) 0, tlvFields, offset, (short) length);
         return (short) (offset + value.length);
     }
 
@@ -644,12 +655,12 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         }
         // Check P1 = 0x00, get static certificate
         if (buffer[ISO7816.OFFSET_P1] == P1_VALIDATE_STATIC_CERTIFICATE) {
-            if (hwStaticCertificatePublicKey != null) {
+            if (hwStaticCertificatePublicKeyLength != 0) {
                 ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
             }
             rDataLength = validateHostStaticCertificate(buffer);
         } else if (buffer[ISO7816.OFFSET_P1] == P1_VALIDATE_EPHEMERAL_CERTIFICATE) {
-            if (hwStaticCertificatePublicKey == null) {
+            if (hwStaticCertificatePublicKeyLength == 0) {
                 ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
             }
             rDataLength = validateHostEphemeralCertificate(buffer);
@@ -669,9 +680,6 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         byte hwSNLength = buffer[offset++];
         if (hwSNLength != HW_SN_LENGTH) {
             ISOException.throwIt(ISO7816.SW_WRONG_DATA);
-        }
-        if (hwSerialNumber == null) {
-            hwSerialNumber = JCSystem.makeTransientByteArray(HW_SN_LENGTH, JCSystem.CLEAR_ON_DESELECT);
         }
         Util.arrayCopy(buffer, offset, hwSerialNumber, (short) 0, hwSNLength);
         Util.arrayCopy(buffer, offset, ramBuffer, (short) 1, hwSNLength);
@@ -693,11 +701,8 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
                 hwCertSignatureLength)) {
             ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         } else {
-            // Store the public key for later use
-            if (hwStaticCertificatePublicKey == null) {
-                hwStaticCertificatePublicKey = JCSystem.makeTransientByteArray((short) hwPubKeyLength, JCSystem.CLEAR_ON_DESELECT);
-            }
             Util.arrayCopyNonAtomic(ramBuffer, (short) (1 + hwSNLength), hwStaticCertificatePublicKey, (short) 0, hwPubKeyLength);
+            hwStaticCertificatePublicKeyLength = hwPubKeyLength;
         }
         return 0;
     }
@@ -723,7 +728,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         if (crypto.getCurveId() != CryptoUtil.SECP256K1) {
             crypto.initCurve((byte) CryptoUtil.SECP256K1);
         }
-        crypto.setVerificationKey(hwStaticCertificatePublicKey, (short) 0, (short) hwStaticCertificatePublicKey.length);
+        crypto.setVerificationKey(hwStaticCertificatePublicKey, (short) 0, (short) hwStaticCertificatePublicKeyLength);
         if (!crypto.verifySignature(ramBuffer, (short) 0,
                 (short) (1 + hostChallengeLength + cardChallengeLength + hwEphemeralPublicKeyLength), buffer, offset,
                 hwEphemeralCertSignatureLength)) {
@@ -790,11 +795,8 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             isPinVerifiedForUpgrade[0] = false;
             triesRemaining = pinManager.getTriesRemaining();
             if (triesRemaining == 0) {
-                // Reset card name if any
-                if (cardName != null) {
-                    cardName = null;
-                    JCSystem.requestObjectDeletion();
-                }
+                // Reset card name length
+                cardNameLength = 0;
                 // Reset PIN, Seed and FSM
                 pinManager.resetPIN();
                 seedManager.clearSeed();
@@ -842,11 +844,8 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         {
             ISOException.throwIt(SW_INCORRECT_SCP_LEDGER);
         }
-        // Reset card name if any
-        if (cardName != null) {
-            cardName = null;
-            JCSystem.requestObjectDeletion();
-        }
+        // Reset card name length
+        cardNameLength = 0;
         // Reset PIN
         pinManager.resetPIN();
         // Clear seed
@@ -924,10 +923,10 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         short fieldLength = 0;
         switch (tag) {
         case DATA_CARD_NAME_TAG:
-            if (cardName == null) {
+            if (cardNameLength == 0) {
                 ISOException.throwIt(SW_REFERENCE_DATA_NOT_FOUND);
             }
-            fieldLength = buildTLVField(ramBuffer, (short) 0, new short[] { DATA_CARD_NAME_TAG }, cardName);
+            fieldLength = buildTLVField(ramBuffer, (short) 0, new short[] { DATA_CARD_NAME_TAG }, cardName, cardNameLength);
             break;
         case DATA_PIN_TRY_COUNTER_TAG:
             byte pinTries = pinManager.getTriesRemaining();
@@ -963,10 +962,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         byte nameLength = ramBuffer[0];
         // Erase card name if nameLength is 0
         if (nameLength == 0) {
-            if (cardName != null) {
-                cardName = null;
-                JCSystem.requestObjectDeletion();
-            }
+            cardNameLength = 0;
             return 0;
         }
         // Throw exception if name is too long
@@ -974,11 +970,8 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             ISOException.throwIt(ISO7816.SW_WRONG_DATA);
         }
         // Set card name
-        if (cardName != null) {
-            cardName = null;
-            JCSystem.requestObjectDeletion();
-        }
-        cardName = new byte[nameLength];
+        cardNameLength = nameLength;
+        Util.arrayFill(cardName, (short) 0, (short) cardName.length, (byte) 0);
         Util.arrayCopyNonAtomic(ramBuffer, (short) 1, cardName, (short) 0, nameLength);
         return 0;
     }
@@ -1034,103 +1027,104 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             return;
         }
 
-        dataOffset = (short)ISO7816.OFFSET_CDATA;
+        dataOffset = (short) ISO7816.OFFSET_CDATA;
         dgi = Util.getShort(baBuffer, dataOffset);
 
         // Skip DGI two bytes
         dataOffset += 2;
-        dataLength = (short)(sLength - ISO7816.OFFSET_CDATA - 2);
+        dataLength = (short) (sLength - ISO7816.OFFSET_CDATA - 2);
 
         // DGI
         switch (dgi) {
-            case DGI_TAG_KEY_VALUE:
-                tlvLength = baBuffer[dataOffset];
-                if ((securityLevel & (SecureChannel.C_MAC | SecureChannel.C_DECRYPTION)) != (SecureChannel.C_MAC | SecureChannel.C_DECRYPTION)) {
-                    ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
-                    return;
-                }
-                if (tlvLength != CryptoUtil.SECP256K1_PRIVATE_KEY_LEN) {
+        case DGI_TAG_KEY_VALUE:
+            tlvLength = baBuffer[dataOffset];
+            if ((securityLevel & (SecureChannel.C_MAC | SecureChannel.C_DECRYPTION)) != (SecureChannel.C_MAC
+                    | SecureChannel.C_DECRYPTION)) {
+                ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+                return;
+            }
+            if (tlvLength != CryptoUtil.SECP256K1_PRIVATE_KEY_LEN) {
+                ISOException.throwIt(SW_INCORRECT_PARAMETERS);
+                return;
+            }
+            issuerKey.setS(baBuffer, (short) (dataOffset + 1), CryptoUtil.SECP256K1_PRIVATE_KEY_LEN);
+            // Erase key value from APDU buffer
+            Util.arrayFillNonAtomic(baBuffer, (short) (dataOffset + 1), (short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN, (byte) 0xFF);
+            break;
+
+        case DGI_TAG_KEY_CRT:
+            while (dataLength > 0) {
+                // At least the 'TL' bytes of the 'TLV'
+                if (dataLength < 2) {
                     ISOException.throwIt(SW_INCORRECT_PARAMETERS);
                     return;
                 }
-                issuerKey.setS(baBuffer, (short)(dataOffset + 1), CryptoUtil.SECP256K1_PRIVATE_KEY_LEN);
-                // Erase key value from APDU buffer
-                Util.arrayFillNonAtomic(baBuffer, (short)(dataOffset + 1), (short)CryptoUtil.SECP256K1_PRIVATE_KEY_LEN, (byte)0xFF);
-                break;
 
-            case DGI_TAG_KEY_CRT:
-                while (dataLength > 0) {
-                    // At least the 'TL' bytes of the 'TLV'
-                    if (dataLength < 2) {
-                        ISOException.throwIt(SW_INCORRECT_PARAMETERS);
-                        return;
-                    }
+                tlvTag = baBuffer[(short) dataOffset];
+                tlvLength = baBuffer[(short) (dataOffset + 1)];
 
-                    tlvTag = baBuffer[(short)dataOffset];
-                    tlvLength = baBuffer[(short)(dataOffset + 1)];
-    
-                    // Check if 'L' value is consistent with remaining data length
-                    if ((tlvLength + 2) > dataLength) {
-                        ISOException.throwIt(SW_INCORRECT_PARAMETERS);
-                        return;
-                    }
+                // Check if 'L' value is consistent with remaining data length
+                if ((tlvLength + 2) > dataLength) {
+                    ISOException.throwIt(SW_INCORRECT_PARAMETERS);
+                    return;
+                }
 
-                    // Check length
-                    if (tlvLength != TAG_KEY_PARAM_LENGTH) {
+                // Check length
+                if (tlvLength != TAG_KEY_PARAM_LENGTH) {
+                    ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+                    return;
+                }
+
+                switch (tlvTag) {
+                case TAG_KEY_USAGE:
+                    if (baBuffer[(short) (dataOffset + 2)] != KEY_USAGE_SIGNATURE) {
                         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
                         return;
                     }
+                    break;
 
-                    switch(tlvTag) {
-                        case TAG_KEY_USAGE:
-                            if (baBuffer[(short)(dataOffset + 2)] != KEY_USAGE_SIGNATURE) {
-                                ISOException.throwIt(ISO7816.SW_WRONG_DATA);
-                                return;
-                            }
-                            break;
-
-                        case TAG_KEY_TYPE:
-                            if (baBuffer[(short)(dataOffset + 2)] != KEY_TYPE_PRIVATE_ECC) {
-                                ISOException.throwIt(ISO7816.SW_WRONG_DATA);
-                                return;
-                            }
-                            break;
-
-                        case TAG_KEY_LENGTH:
-                            if (baBuffer[(short)(dataOffset + 2)] != CryptoUtil.SECP256K1_PRIVATE_KEY_LEN) {
-                                ISOException.throwIt(ISO7816.SW_WRONG_DATA);
-                                return;
-                            }
-                            break;
-
-                        case TAG_KEY_ID:
-                            if (baBuffer[(short)(dataOffset + 2)] != CryptoUtil.SECP256K1) {
-                                ISOException.throwIt(ISO7816.SW_WRONG_DATA);
-                                return;
-                            }
-                            break;
-
-                        case TAG_KEY_VERSION:
-                            if (baBuffer[(short)(dataOffset + 2)] != KEY_VERSION_01) {
-                                ISOException.throwIt(ISO7816.SW_WRONG_DATA);
-                                return;
-                            }
-                            break;
-
-                        default:
-                            // Tag not found
-                            ISOException.throwIt((short)(tlvTag));
-                            return;
+                case TAG_KEY_TYPE:
+                    if (baBuffer[(short) (dataOffset + 2)] != KEY_TYPE_PRIVATE_ECC) {
+                        ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+                        return;
                     }
-                    // Compute new remaining length after processing the current TLV
-                    dataLength = (short)(dataLength - 2 - tlvLength);
-                    dataOffset = (short)(dataOffset + 2 + tlvLength);
-                }
-                break;
+                    break;
 
-            default:
-                ISOException.throwIt(SW_REFERENCE_DATA_NOT_FOUND);
-                return;
+                case TAG_KEY_LENGTH:
+                    if (baBuffer[(short) (dataOffset + 2)] != CryptoUtil.SECP256K1_PRIVATE_KEY_LEN) {
+                        ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+                        return;
+                    }
+                    break;
+
+                case TAG_KEY_ID:
+                    if (baBuffer[(short) (dataOffset + 2)] != CryptoUtil.SECP256K1) {
+                        ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+                        return;
+                    }
+                    break;
+
+                case TAG_KEY_VERSION:
+                    if (baBuffer[(short) (dataOffset + 2)] != KEY_VERSION_01) {
+                        ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+                        return;
+                    }
+                    break;
+
+                default:
+                    // Tag not found
+                    ISOException.throwIt((short) (tlvTag));
+                    return;
+                }
+                // Compute new remaining length after processing the current TLV
+                dataLength = (short) (dataLength - 2 - tlvLength);
+                dataOffset = (short) (dataOffset + 2 + tlvLength);
+            }
+            break;
+
+        default:
+            ISOException.throwIt(SW_REFERENCE_DATA_NOT_FOUND);
+            return;
         }
     }
 
@@ -1178,7 +1172,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
                 buffer[ISO7816.OFFSET_CLA] = LEDGER_COMMAND_CLA;
             }
         } catch (Exception e) {
-            ISOException.throwIt((short) 0xFEDE);
+            ISOException.throwIt((short) SW_INCORRECT_SCP03);
         }
 
         // Get current persistent state

@@ -1,5 +1,7 @@
 package com.ledger.appletcharon;
 
+import static com.ledger.appletcharon.Constants.SW_WRONG_LENGTH;
+
 import org.globalplatform.upgrade.Element;
 import org.globalplatform.upgrade.UpgradeManager;
 
@@ -63,7 +65,7 @@ public class SeedManager {
         clearSeed();
 
         if (seed_data[SEED_DATA_LENGTH_OFFSET] != SEED_LENGTH) {
-            ISOException.throwIt(com.ledger.appletcharon.AppletCharon.SW_WRONG_LENGTH);
+            ISOException.throwIt(SW_WRONG_LENGTH);
         }
 
         try {

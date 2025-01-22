@@ -316,9 +316,9 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         crypto.initCurve(CryptoUtil.SECP256K1);
         issuerKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, crypto.getCurve().getCurveLength(), false);
         crypto.getCurve().setCurveParameters(issuerKey);
+        isPinVerifiedForUpgrade = JCSystem.makeTransientBooleanArray((short) 1, JCSystem.CLEAR_ON_RESET);
 
         if (UpgradeManager.isUpgrading() == false) {
-            isPinVerifiedForUpgrade = JCSystem.makeTransientBooleanArray((short) 1, JCSystem.CLEAR_ON_RESET);
             // Get the serial number from the install data
             getSerialNumberFromInstallData(bArray, bOffset);
             cardCertificate.setSerialNumber(serialNumber, (short) 0, (short) SN_LENGTH);

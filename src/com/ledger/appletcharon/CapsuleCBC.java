@@ -1,5 +1,6 @@
 package com.ledger.appletcharon;
 
+import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;
@@ -27,6 +28,7 @@ public class CapsuleCBC {
     private RandomData randomData;
     private byte[] iv;
     private byte[] fixedInfo;
+    private byte[] fixedInfoLength;
 
     private static final short AES_CBC_BLOCK_SIZE = 16;
     private static final short AES_CBC_IV_LENGTH = 16;
@@ -34,6 +36,7 @@ public class CapsuleCBC {
     private static final short KEY_COUNTER_LENGTH = 4;
     protected static final short KEY_LENGTH = 32; // SHA-256 key length
     private static final short SHARED_SECRET_LENGTH = 69; // Key counter + Prefix + X + Y
+    private static final short MAX_FIXED_INFO_LENGTH = 48;
 
     public CapsuleCBC() {
         ecdhAgreement = KeyAgreement.getInstance(KeyAgreement.ALG_EC_SVDP_DH_PLAIN_XY, false);
@@ -41,69 +44,53 @@ public class CapsuleCBC {
         cipher = Cipher.getInstance(Cipher.ALG_AES_CBC_ISO9797_M2, false);
         hmac = Signature.getInstance(Signature.ALG_HMAC_SHA_256, false);
         randomData = RandomData.getInstance(RandomData.ALG_KEYGENERATION);
+        fixedInfo = JCSystem.makeTransientByteArray(MAX_FIXED_INFO_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+        fixedInfoLength = JCSystem.makeTransientByteArray((short) 2, JCSystem.CLEAR_ON_DESELECT);
+        sharedSecret = JCSystem.makeTransientByteArray((short) (SHARED_SECRET_LENGTH + MAX_FIXED_INFO_LENGTH), JCSystem.CLEAR_ON_DESELECT);
+        key_counter = JCSystem.makeTransientByteArray(KEY_COUNTER_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+        rawEncSessionKey = JCSystem.makeTransientByteArray(KEY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+        rawMacSessionKey = JCSystem.makeTransientByteArray(KEY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+        encSessionKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES_TRANSIENT_DESELECT, KeyBuilder.LENGTH_AES_256, false);
+        macSessionKey = (HMACKey) KeyBuilder.buildKey(KeyBuilder.TYPE_HMAC_TRANSIENT_DESELECT, KeyBuilder.LENGTH_HMAC_SHA_256_BLOCK_64,
+                false);
+        iv = JCSystem.makeTransientByteArray(AES_CBC_IV_LENGTH, JCSystem.CLEAR_ON_DESELECT);
     }
 
     protected void setFixedInfo(byte[] fixedInfoBuffer, short fixedInfoOffset, short fixedInfoLength) {
         // Clear previous fixed info buffer
-        if (fixedInfo != null) {
-            fixedInfo = null;
-            JCSystem.requestObjectDeletion();
-        }
-        fixedInfo = JCSystem.makeTransientByteArray(fixedInfoLength, JCSystem.CLEAR_ON_DESELECT);
+        Util.arrayFill(fixedInfo, (short) 0, (short) fixedInfo.length, (byte) 0);
         Util.arrayCopy(fixedInfoBuffer, fixedInfoOffset, this.fixedInfo, (short) 0, fixedInfoLength);
+        Util.setShort(this.fixedInfoLength, (short) 0, fixedInfoLength);
     }
 
     protected void generateSessionKeys(byte[] hostPublicKey, short hostPublicKeyOffset, short hostPublicKeyLength,
             ECPrivateKey cardPrivateEphemeralKey) {
+        if (Util.getShort(fixedInfoLength, (short) 0) == 0) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
         // Initialize ECDH key agreement
         ecdhAgreement.init(cardPrivateEphemeralKey);
-        // Initialize shared secret byte array
-        if (sharedSecret != null) {
-            sharedSecret = null;
-            JCSystem.requestObjectDeletion();
-        }
-        short sharedSecretLength = SHARED_SECRET_LENGTH;
-        if (fixedInfo != null) {
-            sharedSecretLength += fixedInfo.length;
-        }
-        sharedSecret = JCSystem.makeTransientByteArray(sharedSecretLength, JCSystem.CLEAR_ON_DESELECT);
-        // Initialize key counter byte array
-        if (key_counter == null) {
-            key_counter = JCSystem.makeTransientByteArray(KEY_COUNTER_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-        }
-
+        // Clear shared secret
+        Util.arrayFill(sharedSecret, (short) 0, (short) sharedSecret.length, (byte) 0);
+        short sharedSecretLength = (short) (SHARED_SECRET_LENGTH + Util.getShort(fixedInfoLength, (short) 0));
         // Fill key counter with zeros
         Util.arrayFill(key_counter, (short) 0, KEY_COUNTER_LENGTH, (byte) 0);
         Util.arrayCopy(key_counter, (short) 0, sharedSecret, (short) 0, KEY_COUNTER_LENGTH);
         // Generate shared secret
         ecdhAgreement.generateSecret(hostPublicKey, hostPublicKeyOffset, hostPublicKeyLength, sharedSecret, (short) KEY_COUNTER_LENGTH);
         // Copy fixed info to shared secret
-        if (fixedInfo != null) {
-            Util.arrayCopy(fixedInfo, (short) 0, sharedSecret, (short) SHARED_SECRET_LENGTH, (short) fixedInfo.length);
-        }
-        // Initialize rawEncSessionKey byte array
-        if (rawEncSessionKey == null) {
-            rawEncSessionKey = JCSystem.makeTransientByteArray(KEY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-        }
+        Util.arrayCopy(fixedInfo, (short) 0, sharedSecret, SHARED_SECRET_LENGTH, Util.getShort(fixedInfoLength, (short) 0));
         // Compute SHA-256 hash of shared secret
         messageDigest.reset();
         messageDigest.doFinal(sharedSecret, (short) 0, sharedSecretLength, rawEncSessionKey, (short) 0);
         // Initialize AES key
-        encSessionKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES_TRANSIENT_DESELECT, KeyBuilder.LENGTH_AES_256, false);
         encSessionKey.setKey(rawEncSessionKey, (short) 0);
         // Increment key counter and update shared secret
         key_counter[3]++;
         Util.arrayCopy(key_counter, (short) 0, sharedSecret, (short) 0, KEY_COUNTER_LENGTH);
-        // Initialize rawMacSessionKey byte array
-        if (rawMacSessionKey == null) {
-            rawMacSessionKey = JCSystem.makeTransientByteArray(KEY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-        }
         // Compute SHA-256 hash of updated shared secret
         messageDigest.reset();
         messageDigest.doFinal(sharedSecret, (short) 0, sharedSecretLength, rawMacSessionKey, (short) 0);
-        // Initialize HMAC key
-        macSessionKey = (HMACKey) KeyBuilder.buildKey(KeyBuilder.TYPE_HMAC_TRANSIENT_DESELECT, KeyBuilder.LENGTH_HMAC_SHA_256_BLOCK_64,
-                false);
         // Use the first 8 bytes of the rawMacSessionKey as the HMAC key. Max size
         // allowed by
         // LENGTH_HMAC_SHA_256_BLOCK_64 is 64 bits.
@@ -111,10 +98,6 @@ public class CapsuleCBC {
     }
 
     protected short encryptData(byte[] plaintext, short plaintextOffset, short plaintextLength, byte[] ciphertext, short ciphertextOffset) {
-        // Generate IV
-        if (iv == null) {
-            iv = JCSystem.makeTransientByteArray(AES_CBC_IV_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-        }
         randomData.nextBytes(iv, (short) 0, (short) iv.length);
 
         short currentOffset = ciphertextOffset;
@@ -165,9 +148,6 @@ public class CapsuleCBC {
         }
 
         // Get IV
-        if (iv == null) {
-            iv = JCSystem.makeTransientByteArray(AES_CBC_IV_LENGTH, JCSystem.CLEAR_ON_DESELECT);
-        }
         Util.arrayCopy(inData, currentOffset, iv, (short) 0, AES_CBC_IV_LENGTH);
         currentOffset += AES_CBC_IV_LENGTH;
 

@@ -131,7 +131,7 @@ public class PINManager {
         if (pinManager == null || pinManager.getPINStatus() != PIN_STATUS_ACTIVATED) {
             return null;
         }
-        return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 0, (short) 1).write(pinManager.pin);
+        return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 1, (short) 1).write(pinManager.pinStatus).write(pinManager.pin);
     }
 
     static PINManager restore(Element element) {
@@ -139,6 +139,7 @@ public class PINManager {
             return null;
         }
         PINManager pinManager = new PINManager();
+        pinManager.pinStatus = element.readByte();
         pinManager.pin = (OwnerPIN) element.readObject();
         return pinManager;
     }

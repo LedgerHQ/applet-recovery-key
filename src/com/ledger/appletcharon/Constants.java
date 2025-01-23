@@ -40,6 +40,9 @@ public final class Constants {
     protected static final byte APDU_HEADER_SIZE = 5;
     protected static final byte LEDGER_COMMAND_CLA = (byte) 0x08;
 
+    // GP SCP constants
+    protected static final short SECURITY_LEVEL_MASK = 0x7F;
+
     // GlobalPlatform classes and instructions code for SCP03
     // Instruction classes
     protected static final byte GP_CLA_INITIALIZE_UPDATE = (byte) 0x80;

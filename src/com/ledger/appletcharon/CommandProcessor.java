@@ -34,9 +34,6 @@ import static com.ledger.appletcharon.Utils.buildTLVField;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.Util;
-import javacard.security.ECPrivateKey;
-import javacard.security.ECPublicKey;
-import javacard.security.KeyBuilder;
 
 public class CommandProcessor {
     private static final byte INS_GET_STATUS = (byte) 0xF2;
@@ -99,12 +96,8 @@ public class CommandProcessor {
         if (ramBuffer[0] != AppletStateMachine.STATE_FABRICATION || ramBuffer[1] != TransientStateMachine.STATE_IDLE) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
-
-        app.crypto.initCurve((byte) CryptoUtil.SECP256K1);
-        app.certificatePrivateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE,
-                app.crypto.getCurve().getCurveLength(), false);
-        app.certificatePublicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, app.crypto.getCurve().getCurveLength(),
-                false);
+        app.certificatePrivateKey.clearKey();
+        app.certificatePublicKey.clearKey();
         // Use ramBuffer for temporary data
         app.crypto.generateKeyPair(ramBuffer, (short) 0, app.certificatePrivateKey, app.certificatePublicKey);
 
@@ -288,12 +281,12 @@ public class CommandProcessor {
         }
         // Check P1 = 0x00, get static certificate
         if (buffer[ISO7816.OFFSET_P1] == P1_VALIDATE_STATIC_CERTIFICATE) {
-            if (app.hwStaticCertificatePublicKeyLength != 0) {
+            if (app.hwStaticCertificatePublicKeyLength[0] != 0) {
                 ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
             }
             rDataLength = validateHostStaticCertificate(buffer);
         } else if (buffer[ISO7816.OFFSET_P1] == P1_VALIDATE_EPHEMERAL_CERTIFICATE) {
-            if (app.hwStaticCertificatePublicKeyLength == 0) {
+            if (app.hwStaticCertificatePublicKeyLength[0] == 0) {
                 ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
             }
             rDataLength = validateHostEphemeralCertificate(buffer);
@@ -335,7 +328,7 @@ public class CommandProcessor {
             ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         } else {
             Util.arrayCopyNonAtomic(ramBuffer, (short) (1 + hwSNLength), app.hwStaticCertificatePublicKey, (short) 0, hwPubKeyLength);
-            app.hwStaticCertificatePublicKeyLength = hwPubKeyLength;
+            app.hwStaticCertificatePublicKeyLength[0] = hwPubKeyLength;
         }
         return 0;
     }
@@ -361,7 +354,7 @@ public class CommandProcessor {
         if (app.crypto.getCurveId() != CryptoUtil.SECP256K1) {
             app.crypto.initCurve((byte) CryptoUtil.SECP256K1);
         }
-        app.crypto.setVerificationKey(app.hwStaticCertificatePublicKey, (short) 0, (short) app.hwStaticCertificatePublicKeyLength);
+        app.crypto.setVerificationKey(app.hwStaticCertificatePublicKey, (short) 0, app.hwStaticCertificatePublicKeyLength[0]);
         if (!app.crypto.verifySignature(ramBuffer, (short) 0,
                 (short) (1 + hostChallengeLength + cardChallengeLength + hwEphemeralPublicKeyLength), buffer, offset,
                 hwEphemeralCertSignatureLength)) {

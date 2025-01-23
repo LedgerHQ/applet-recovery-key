@@ -21,6 +21,8 @@ import static com.ledger.appletcharon.Constants.LEDGER_COMMAND_CLA;
 import static com.ledger.appletcharon.Constants.MAX_CARD_NAME_LENGTH;
 import static com.ledger.appletcharon.Constants.MAX_HW_PUBLIC_KEY_LENGTH;
 import static com.ledger.appletcharon.Constants.RAM_BUFFER_SIZE;
+import static com.ledger.appletcharon.Constants.SECURITY_LEVEL_MASK;
+import static com.ledger.appletcharon.Constants.SN_LENGTH;
 import static com.ledger.appletcharon.Constants.SW_INCORRECT_PARAMETERS;
 import static com.ledger.appletcharon.Constants.SW_INCORRECT_SCP03;
 import static com.ledger.appletcharon.Constants.SW_INVALID_PARAMETER;
@@ -62,7 +64,6 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
 
     // Card info
     protected byte[] serialNumber;
-    public static final byte SN_LENGTH = 4;
     protected byte[] cardName;
     protected byte cardNameLength;
 
@@ -78,7 +79,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     protected ECPublicKey certificatePublicKey;
     protected ECPrivateKey issuerKey;
     protected byte[] hwStaticCertificatePublicKey;
-    private short[] hwStaticCertificatePublicKeyLength;
+    protected short[] hwStaticCertificatePublicKeyLength;
 
     // Secure channels (GP + Ledger)
     protected SecureChannel secureChannel;
@@ -97,8 +98,6 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
 
     // RAM buffer
     protected byte ramBuffer[];
-
-    private static final short SECURITY_LEVEL_MASK = 0x7F;
 
     // Command processor
     private CommandProcessor commandProcessor;

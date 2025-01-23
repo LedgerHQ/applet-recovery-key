@@ -2,6 +2,7 @@ package com.ledger.appletcharon;
 
 import static com.ledger.appletcharon.Constants.SW_INCORRECT_SCP_LEDGER;
 
+import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 import javacard.framework.Util;

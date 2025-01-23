@@ -218,7 +218,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         if (cardCertificate.isCertificateSet()) {
             appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
         }
-        if (seedManager.seedKey != null && pinManager.getPINStatus() == PINManager.PIN_STATUS_ACTIVATED) {
+        if (seedManager.isSeedSet() && pinManager.getPINStatus() == PINManager.PIN_STATUS_ACTIVATED) {
             appletFSM.transition(AppletStateMachine.EVENT_SET_SEED);
         }
         transientFSM.setOnSelectState();

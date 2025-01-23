@@ -571,7 +571,7 @@ public class CommandProcessor {
         byte seedLength = app.seedManager.restoreSeed(ramBuffer, (short) 1);
         ramBuffer[0] = seedLength;
         // Encrypt seed
-        return app.capsule.encryptData(ramBuffer, (short) 0, (short) ((seedLength + 1) & 0x00FF), buffer, (short) 0);
+        return app.capsule.encryptData(ramBuffer, (short) 0, (short) ((SeedManager.SEED_LENGTH + 1) & 0x00FF), buffer, (short) 0);
     }
 
     private short verifySeed(byte[] buffer, short cdatalength) {

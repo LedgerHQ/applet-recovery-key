@@ -57,7 +57,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     private ECPrivateKey issuerKey;
     private byte[] hwStaticCertificatePublicKey;
     private static final short MAX_HW_PUBLIC_KEY_LENGTH = 65;
-    private short hwStaticCertificatePublicKeyLength;
+    private short[] hwStaticCertificatePublicKeyLength;
 
     private SecureChannel secureChannel;
     private CryptoUtil crypto;
@@ -231,7 +231,6 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     @Override
     public boolean select() {
         secureChannel = null;
-        hwStaticCertificatePublicKeyLength = 0;
         transientFSM.setOnSelectState();
         // Clear PIN if personalization was not completed in the previous session
         // (PIN was set but not the seed)
@@ -299,22 +298,27 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         secureChannel = null;
         pinManager = new PINManager();
         crypto = new CryptoUtil();
+        crypto.initCurve(CryptoUtil.SECP256K1);
         seedManager = new SeedManager();
         seedManager.setCryptoUtil(crypto);
         cardCertificate = new Certificate(CARD_CERT_ROLE);
         ephemeralCertificate = new EphemeralCertificate(crypto, CARD_CERT_ROLE);
         capsule = new CapsuleCBC();
         // Initialize Issuer key
-        crypto.initCurve(CryptoUtil.SECP256K1);
         issuerKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, crypto.getCurve().getCurveLength(), false);
         crypto.getCurve().setCurveParameters(issuerKey);
         ramBuffer = JCSystem.makeTransientByteArray(RAM_BUFFER_SIZE, JCSystem.CLEAR_ON_DESELECT);
         hwSerialNumber = JCSystem.makeTransientByteArray(HW_SN_LENGTH, JCSystem.CLEAR_ON_DESELECT);
         hwStaticCertificatePublicKey = JCSystem.makeTransientByteArray(MAX_HW_PUBLIC_KEY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
+        hwStaticCertificatePublicKeyLength = JCSystem.makeTransientShortArray((short) 1, JCSystem.CLEAR_ON_DESELECT);
         cardName = new byte[MAX_CARD_NAME_LENGTH];
         isPinVerifiedForUpgrade = JCSystem.makeTransientBooleanArray((short) 1, JCSystem.CLEAR_ON_RESET);
 
         if (UpgradeManager.isUpgrading() == false) {
+            certificatePrivateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, crypto.getCurve().getCurveLength(),
+                    false);
+            certificatePublicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, crypto.getCurve().getCurveLength(),
+                    false);
             // Get the serial number from the install data
             getSerialNumberFromInstallData(bArray, bOffset);
             cardCertificate.setSerialNumber(serialNumber, (short) 0, (short) SN_LENGTH);
@@ -467,11 +471,8 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         if (ramBuffer[0] != AppletStateMachine.STATE_FABRICATION || ramBuffer[1] != TransientStateMachine.STATE_IDLE) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
-
-        crypto.initCurve((byte) CryptoUtil.SECP256K1);
-        certificatePrivateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, crypto.getCurve().getCurveLength(),
-                false);
-        certificatePublicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, crypto.getCurve().getCurveLength(), false);
+        certificatePrivateKey.clearKey();
+        certificatePublicKey.clearKey();
         // Use ramBuffer for temporary data
         crypto.generateKeyPair(ramBuffer, (short) 0, certificatePrivateKey, certificatePublicKey);
 
@@ -655,12 +656,12 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         }
         // Check P1 = 0x00, get static certificate
         if (buffer[ISO7816.OFFSET_P1] == P1_VALIDATE_STATIC_CERTIFICATE) {
-            if (hwStaticCertificatePublicKeyLength != 0) {
+            if (hwStaticCertificatePublicKeyLength[0] != 0) {
                 ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
             }
             rDataLength = validateHostStaticCertificate(buffer);
         } else if (buffer[ISO7816.OFFSET_P1] == P1_VALIDATE_EPHEMERAL_CERTIFICATE) {
-            if (hwStaticCertificatePublicKeyLength == 0) {
+            if (hwStaticCertificatePublicKeyLength[0] == 0) {
                 ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
             }
             rDataLength = validateHostEphemeralCertificate(buffer);
@@ -702,7 +703,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         } else {
             Util.arrayCopyNonAtomic(ramBuffer, (short) (1 + hwSNLength), hwStaticCertificatePublicKey, (short) 0, hwPubKeyLength);
-            hwStaticCertificatePublicKeyLength = hwPubKeyLength;
+            hwStaticCertificatePublicKeyLength[0] = hwPubKeyLength;
         }
         return 0;
     }
@@ -728,7 +729,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         if (crypto.getCurveId() != CryptoUtil.SECP256K1) {
             crypto.initCurve((byte) CryptoUtil.SECP256K1);
         }
-        crypto.setVerificationKey(hwStaticCertificatePublicKey, (short) 0, (short) hwStaticCertificatePublicKeyLength);
+        crypto.setVerificationKey(hwStaticCertificatePublicKey, (short) 0, hwStaticCertificatePublicKeyLength[0]);
         if (!crypto.verifySignature(ramBuffer, (short) 0,
                 (short) (1 + hostChallengeLength + cardChallengeLength + hwEphemeralPublicKeyLength), buffer, offset,
                 hwEphemeralCertSignatureLength)) {

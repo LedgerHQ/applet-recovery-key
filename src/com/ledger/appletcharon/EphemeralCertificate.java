@@ -38,27 +38,20 @@ public class EphemeralCertificate {
         cardChallenge = JCSystem.makeTransientByteArray((short) CARD_CHALLENGE_LEN, JCSystem.CLEAR_ON_DESELECT);
         hostChallenge = JCSystem.makeTransientByteArray((short) MAX_HOST_CHALLENGE_LEN, JCSystem.CLEAR_ON_DESELECT);
         hostChallengeLength = JCSystem.makeTransientByteArray((short) 1, JCSystem.CLEAR_ON_DESELECT);
-    }
-
-    protected void initData(byte[] buffer, short offset) {
-        // Initialize curve
         if (crypto.getCurveId() != CryptoUtil.SECP256K1) {
             crypto.initCurve(CryptoUtil.SECP256K1);
         }
-        // Generate key pair
-        // We cannot call KeyBuilder.buildKey in the constructor (results in 0x6F00
-        // error at install), so we do it here instead.
-        if (privateKey == null) {
-            privateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE_TRANSIENT_DESELECT,
-                    crypto.getCurve().getCurveLength(), false);
-        } else {
-            privateKey.clearKey();
-        }
+        privateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE_TRANSIENT_DESELECT,
+                crypto.getCurve().getCurveLength(), false);
+        publicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, crypto.getCurve().getCurveLength(), false);
 
-        if (publicKey == null) {
-            publicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, crypto.getCurve().getCurveLength(), false);
-        } else {
-            publicKey.clearKey();
+    }
+
+    protected void initData(byte[] buffer, short offset) {
+        privateKey.clearKey();
+        publicKey.clearKey();
+        if (crypto.getCurveId() != CryptoUtil.SECP256K1) {
+            crypto.initCurve(CryptoUtil.SECP256K1);
         }
         crypto.generateKeyPair(buffer, (short) 0, privateKey, publicKey);
         // Create new card challenge

@@ -42,7 +42,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
 
     private static final byte CARD_TARGET_ID[] = { (byte) 0x33, (byte) 0x40, (byte) 0x00, (byte) 0x04 };
     private byte[] serialNumber;
-    private static final byte SN_LENGTH = 4;
+    public static final byte SN_LENGTH = 4;
     private byte[] cardName;
     private byte cardNameLength;
     private static final byte MAX_CARD_NAME_LENGTH = 32;
@@ -215,7 +215,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         if (this.cardCertificate.serialNumber == null) {
             this.cardCertificate.setSerialNumber(serialNumber, (short) 0, (short) SN_LENGTH);
         }
-        if (certificatePrivateKey != null && certificatePublicKey != null && cardCertificate.signature != null) {
+        if (cardCertificate.isCertificateSet()) {
             appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
         }
         if (seedManager.seedKey != null && pinManager.getPINStatus() == PINManager.PIN_STATUS_ACTIVATED) {

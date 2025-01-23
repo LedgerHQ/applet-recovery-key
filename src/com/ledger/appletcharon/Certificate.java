@@ -3,8 +3,9 @@
  * 
  */
 
-
 package com.ledger.appletcharon;
+
+import static com.ledger.appletcharon.AppletCharon.SN_LENGTH;
 
 import org.globalplatform.upgrade.Element;
 import org.globalplatform.upgrade.UpgradeManager;
@@ -40,10 +41,21 @@ public class Certificate {
 
     // Batch serial number length
     protected static final short BATCH_SERIAL_LEN = 4;
+    private static final short MAX_PUBLIC_KEY_LEN = 65;
+    private static final short MAX_SIGNATURE_LEN = 72; // DER encoded signature length
 
     public Certificate(byte role) {
         this.role = new byte[1];
         this.role[0] = role;
+        this.serialNumber = new byte[SN_LENGTH];
+        this.serialNumberLength = 0;
+        this.publicKey = new byte[MAX_PUBLIC_KEY_LEN];
+        this.publicKeyLength = 0;
+        this.issuerPublicKey = new byte[MAX_PUBLIC_KEY_LEN];
+        this.issuerPublicKeyLength = 0;
+        this.signature = new byte[MAX_SIGNATURE_LEN];
+        this.signatureLength = 0;
+        this.batchSerial = new byte[BATCH_SERIAL_LEN];
     }
 
     /**
@@ -56,7 +68,7 @@ public class Certificate {
      */
     protected void setPublicKey(byte[] publicKey, short offset, short publicKeyLength) {
         this.publicKeyLength = publicKeyLength;
-        this.publicKey = new byte[publicKeyLength];
+        Util.arrayFill(this.publicKey, (short) 0, (short) this.publicKey.length, (byte) 0);
         Util.arrayCopy(publicKey, offset, this.publicKey, (short) 0, publicKeyLength);
     }
 
@@ -69,7 +81,7 @@ public class Certificate {
      */
     protected void setIssuerPublicKey(byte[] publicKey, short offset, short publicKeyLength) {
         this.issuerPublicKeyLength = publicKeyLength;
-        this.issuerPublicKey = new byte[publicKeyLength];
+        Util.arrayFill(this.issuerPublicKey, (short) 0, (short) this.issuerPublicKey.length, (byte) 0);
         Util.arrayCopy(publicKey, offset, this.issuerPublicKey, (short) 0, publicKeyLength);
     }
 
@@ -82,8 +94,8 @@ public class Certificate {
      */
     protected void setSignature(byte[] signature, short offset, short signatureLength) {
         this.signatureLength = signatureLength;
-        this.signature = new byte[signatureLength];
-        Util.arrayCopy(signature, offset, this.signature, (short) 0, signatureLength); 	
+        Util.arrayFill(this.signature, (short) 0, (short) this.signature.length, (byte) 0);
+        Util.arrayCopy(signature, offset, this.signature, (short) 0, signatureLength);
     }
 
     /**
@@ -92,7 +104,6 @@ public class Certificate {
      * @param[in] offset      Offset to the batch serial number value
      */
     protected void setBatchSerial(byte[] batchSerial, short offset) {
-        this.batchSerial = new byte[BATCH_SERIAL_LEN];
         Util.arrayCopy(batchSerial, offset, this.batchSerial, (short) 0, BATCH_SERIAL_LEN);
     }
 
@@ -105,8 +116,8 @@ public class Certificate {
      * @param[in] serialNumberLength Card serial number length
      */
     protected void setSerialNumber(byte[] serialNumber, short offset, short serialNumberLength) {
-        this.serialNumber = new byte[serialNumberLength];
         this.serialNumberLength = serialNumberLength;
+        Util.arrayFill(this.serialNumber, (short) 0, (short) this.serialNumber.length, (byte) 0);
         Util.arrayCopy(serialNumber, offset, this.serialNumber, (short) 0, serialNumberLength);
     }
 
@@ -179,7 +190,8 @@ public class Certificate {
      *         false Signature is not verified
      */
     protected boolean verifySignature() {
-        ECPublicKey issuerPublicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, (short) curve.getCurveLength(), false);
+        ECPublicKey issuerPublicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, (short) curve.getCurveLength(),
+                false);
         curve.setCurveParameters(issuerPublicKey);
         issuerPublicKey.setW(this.issuerPublicKey, (short) 0, (short) issuerPublicKeyLength);
 
@@ -191,17 +203,24 @@ public class Certificate {
         boolean isVerified = signature.verify(publicKey, (short) 0, publicKeyLength, this.signature, (short) 0, signatureLength);
 
         if (isVerified == false) {
+            // TODO: implement fatal error, this should never happen (?)
             eraseAll();
         }
         return isVerified;
+    }
+
+    protected boolean isCertificateSet() {
+        return (publicKeyLength != 0 && issuerPublicKeyLength != 0 && signatureLength != 0);
     }
 
     static Element save(Certificate certificate) {
         if (certificate == null || certificate.signature == null) {
             return null;
         }
+        short primitiveCount = 1 + 2 * 3; // role, publicKeyLength, signatureLength, issuerPublicKeyLength,
         short objectCount = 4; // serialNumber, publicKey, signature, issuerPublicKey
-        return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 1, objectCount).write(certificate.role[0])
+        return UpgradeManager.createElement(Element.TYPE_SIMPLE, primitiveCount, objectCount).write(certificate.role[0])
+                .write(certificate.publicKeyLength).write(certificate.signatureLength).write(certificate.issuerPublicKeyLength)
                 .write(certificate.serialNumber).write(certificate.publicKey).write(certificate.signature)
                 .write(certificate.issuerPublicKey);
     }
@@ -211,14 +230,14 @@ public class Certificate {
             return null;
         }
         Certificate cert = new Certificate(element.readByte());
+        cert.publicKeyLength = element.readShort();
+        cert.signatureLength = element.readShort();
+        cert.issuerPublicKeyLength = element.readShort();
         cert.serialNumber = (byte[]) element.readObject();
         cert.serialNumberLength = (short) cert.serialNumber.length;
         cert.publicKey = (byte[]) element.readObject();
-        cert.publicKeyLength = (short) cert.publicKey.length;
         cert.signature = (byte[]) element.readObject();
-        cert.signatureLength = (short) cert.signature.length;
         cert.issuerPublicKey = (byte[]) element.readObject();
-        cert.issuerPublicKeyLength = (short) cert.issuerPublicKey.length;
         return cert;
     }
 }

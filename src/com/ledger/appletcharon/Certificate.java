@@ -5,6 +5,7 @@
 
 package com.ledger.appletcharon;
 
+import static com.ledger.appletcharon.AppletCharon.staticThrowFatalError;
 import static com.ledger.appletcharon.Constants.SN_LENGTH;
 
 import org.globalplatform.upgrade.Element;
@@ -203,8 +204,8 @@ public class Certificate {
         boolean isVerified = signature.verify(publicKey, (short) 0, publicKeyLength, this.signature, (short) 0, signatureLength);
 
         if (isVerified == false) {
-            // TODO: implement fatal error, this should never happen (?)
             eraseAll();
+            staticThrowFatalError();
         }
         return isVerified;
     }

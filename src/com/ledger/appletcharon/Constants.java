@@ -49,8 +49,6 @@ public final class Constants {
     protected static final byte GP_INS_EXTERNAL_AUTHENTICATE = (byte) 0x82;
 
     // Custom status words
-    // Invalid input parameter to command
-    protected static final short SW_INVALID_PARAMETER = (short) 0x9C0F;
     // PIN try counter changed
     protected static final short SW_PIN_COUNTER_CHANGED = (short) 0x63C0;
     // Not enough memory in NVM to store the requested element
@@ -79,6 +77,9 @@ public final class Constants {
     protected static final short SW_REFERENCE_DATA_NOT_FOUND = (short) 0x6A88;
     // Success
     protected static final short SW_SUCCESS = (short) 0x9000;
+    // Fatal errors
+    protected static final short SW_FATAL_ERROR = (short) 0x9F00;
+    protected static final short SW_FATAL_ERROR_DURING_INIT = (short) 0x9F01;
 
     // STORE_DATA constants
     // Key tag values

@@ -410,9 +410,9 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         } else {
             ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         }
-        tlvFields[offset++] = (byte) value.length;
-        Util.arrayCopyNonAtomic(value, (short) 0, tlvFields, offset, (short) length);
-        return (short) (offset + value.length);
+        tlvFields[offset++] = (byte) length;
+        Util.arrayCopyNonAtomic(value, (short) 0, tlvFields, offset, length);
+        return (short) (offset + length);
     }
 
     /**

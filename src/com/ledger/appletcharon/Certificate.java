@@ -5,7 +5,6 @@
 
 package com.ledger.appletcharon;
 
-import static com.ledger.appletcharon.AppletCharon.staticThrowFatalError;
 import static com.ledger.appletcharon.Constants.SN_LENGTH;
 
 import org.globalplatform.upgrade.Element;
@@ -205,7 +204,6 @@ public class Certificate {
 
         if (isVerified == false) {
             eraseAll();
-            staticThrowFatalError();
         }
         return isVerified;
     }

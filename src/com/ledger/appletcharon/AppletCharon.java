@@ -286,13 +286,14 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             seedManager.clearSeedOnFatalError();
             // Reset secure channel
             secureChannel = null;
+        } catch (Exception e) {
+            // Ignore all other exceptions
+        } finally {
             // Reset FSM states (lifecycle : attested, transient : initialized)
             appletFSM.setStateOnFatalError();
             transientFSM.setStateOnFatalError();
-        } catch (Exception e) {
-            // Ignore all other exceptions
+            CardRuntimeException.throwIt(SW_FATAL_ERROR);
         }
-        CardRuntimeException.throwIt(SW_FATAL_ERROR);
     }
 
     /**

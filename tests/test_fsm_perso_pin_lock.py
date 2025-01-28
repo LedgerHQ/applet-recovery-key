@@ -16,6 +16,7 @@ from .conftest import (
     MAC_KEY,
     AID,
     SEED_LEN,
+    TEST_SEED,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,8 +42,7 @@ def setup_applet():
     client.validate_hw_ephemeral_certificate()
     pin_digits = bytes([0x01, 0x02, 0x03, 0x04])
     client.set_pin(pin_digits)
-    seed = os.urandom(SEED_LEN)
-    client.set_seed(seed)
+    client.set_seed(TEST_SEED)
     backend.disconnect()
 
 
@@ -139,14 +139,15 @@ def test_fsm_perso_pin_lock_unauthorized_cmds(client):
         client.restore_seed()
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
-    # TODO: implement this command in the applet
-    # with pytest.raises(AssertionError) as e:
-    #     client.verify_seed(dummy_seed)
+    with pytest.raises(AssertionError) as e:
+        client.verify_seed(dummy_seed)
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
-    # TODO: implement this command in the applet
-    # with pytest.raises(AssertionError) as e:
-    # client.set_data()
+    with pytest.raises(AssertionError) as e:
+        data_tag = "0066"
+        client.set_data(int(data_tag, 16), "dummy".encode())
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
-    # TODO: implement this command in the client
-    # with pytest.raises(AssertionError) as e:
-    # client.factory_reset()
+    with pytest.raises(AssertionError) as e:
+        client.factory_reset()
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED

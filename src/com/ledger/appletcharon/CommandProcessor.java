@@ -20,10 +20,12 @@ import static com.ledger.appletcharon.Constants.P1_VALIDATE_EPHEMERAL_CERTIFICAT
 import static com.ledger.appletcharon.Constants.P1_VALIDATE_STATIC_CERTIFICATE;
 import static com.ledger.appletcharon.Constants.SN_LENGTH;
 import static com.ledger.appletcharon.Constants.SW_AUTHENTICATION_BLOCKED;
+import static com.ledger.appletcharon.Constants.SW_INCORRECT_PARAMETERS;
 import static com.ledger.appletcharon.Constants.SW_INCORRECT_SCP_LEDGER;
 import static com.ledger.appletcharon.Constants.SW_MISSING_SCP_LEDGER;
 import static com.ledger.appletcharon.Constants.SW_PIN_COUNTER_CHANGED;
 import static com.ledger.appletcharon.Constants.SW_REFERENCE_DATA_NOT_FOUND;
+import static com.ledger.appletcharon.Constants.SW_SECURITY_STATUS;
 import static com.ledger.appletcharon.Constants.SW_WRONG_LENGTH;
 import static com.ledger.appletcharon.Constants.SW_WRONG_P1P2;
 import static com.ledger.appletcharon.Utils.buildTLVField;
@@ -60,6 +62,14 @@ public class CommandProcessor {
     }
 
     private short getStatus(byte[] buffer) {
+        // Check P1 and P2 are 0
+        if (buffer[ISO7816.OFFSET_P1] != 0 || buffer[ISO7816.OFFSET_P2] != 0) {
+            ISOException.throwIt(SW_WRONG_P1P2);
+        }
+        // Check length field
+        if (buffer[ISO7816.OFFSET_LC] != 0) {
+            ISOException.throwIt(SW_WRONG_LENGTH);
+        }
         short offset = 0;
         offset = buildTLVField(buffer, offset, new byte[] { GET_STATUS_TARGET_ID_TAG }, CARD_TARGET_ID);
         offset = buildTLVField(buffer, offset, new byte[] { GET_STATUS_SERIAL_NUMBER_TAG }, app.serialNumber);
@@ -95,6 +105,12 @@ public class CommandProcessor {
         // Check FSM states
         if (ramBuffer[0] != AppletStateMachine.STATE_FABRICATION || ramBuffer[1] != TransientStateMachine.STATE_IDLE) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        if (buffer[ISO7816.OFFSET_P1] != 0 || buffer[ISO7816.OFFSET_P2] != 0) {
+            ISOException.throwIt(SW_WRONG_P1P2);
+        }
+        if (buffer[ISO7816.OFFSET_LC] != 0) {
+            ISOException.throwIt(SW_WRONG_LENGTH);
         }
         app.certificatePrivateKey.clearKey();
         app.certificatePublicKey.clearKey();
@@ -144,10 +160,19 @@ public class CommandProcessor {
      *
      * return: none
      */
-    private short setCertificate(byte[] buffer) {
+    private short setCertificate(byte[] buffer, short cdatalength) {
         // Check FSM states
         if (ramBuffer[0] != AppletStateMachine.STATE_FABRICATION || ramBuffer[1] != TransientStateMachine.STATE_IDLE) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        // Check P1 and P2 are 0
+        if (buffer[ISO7816.OFFSET_P1] != 0 || buffer[ISO7816.OFFSET_P2] != 0) {
+            ISOException.throwIt(SW_WRONG_P1P2);
+        }
+        // Check data length
+        if (cdatalength == 0 || buffer[ISO7816.OFFSET_LC] == 0
+                || (short) (buffer[ISO7816.OFFSET_LC] & 0xFF) != cdatalength - (short) (APDU_HEADER_SIZE)) {
+            ISOException.throwIt(SW_WRONG_LENGTH);
         }
 
         app.cardCertificate.setBatchSerial(buffer, ISO7816.OFFSET_CDATA);
@@ -157,7 +182,7 @@ public class CommandProcessor {
         offset += 1 + buffer[offset];
         // Check serial number
         if (Util.arrayCompare(buffer, (short) (offset + 1), app.serialNumber, (short) 0, buffer[offset]) != 0) {
-            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+            ISOException.throwIt(SW_INCORRECT_PARAMETERS);
         }
         offset += 1 + buffer[offset];
         // buffer[offset] = signature length
@@ -169,7 +194,7 @@ public class CommandProcessor {
         ramBuffer[0] = (byte) app.certificatePublicKey.getW(ramBuffer, (short) 1);
         app.cardCertificate.setPublicKey(ramBuffer, (short) 1, (short) ramBuffer[0]);
         if (app.cardCertificate.verifySignature() != true) {
-            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+            ISOException.throwIt(SW_SECURITY_STATUS);
         }
         // Set FSM state
         app.appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
@@ -217,30 +242,29 @@ public class CommandProcessor {
                 && (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_LOCKED)) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
-
         // Check P2 is 0
         if (buffer[ISO7816.OFFSET_P2] != 0) {
-            ISOException.throwIt(ISO7816.SW_WRONG_P1P2);
+            ISOException.throwIt(SW_WRONG_P1P2);
         }
         // Check P1 = 0x00, get static certificate
         if (buffer[ISO7816.OFFSET_P1] == P1_GET_STATIC_CERTIFICATE) {
             // Check that host challenge is present
-            if (buffer[ISO7816.OFFSET_LC] == 0) {
-                ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+            if (buffer[ISO7816.OFFSET_LC] == 0 || buffer[ISO7816.OFFSET_LC] > 8) {
+                ISOException.throwIt(SW_WRONG_LENGTH);
             }
             app.ephemeralCertificate.setHostChallenge(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC]);
             return app.cardCertificate.getCertificate(buffer, (short) 0);
         } else if (buffer[ISO7816.OFFSET_P1] == P1_GET_EPHEMERAL_CERTIFICATE) {
             // Check that no data is present
             if (buffer[ISO7816.OFFSET_LC] != 0) {
-                ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+                ISOException.throwIt(SW_WRONG_LENGTH);
             }
             if (app.ephemeralCertificate.getHostChallenge(ramBuffer, (short) 0) == 0) {
                 ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
             }
             return getCardEphemeralCertificate(buffer);
         } else {
-            ISOException.throwIt(ISO7816.SW_WRONG_P1P2);
+            ISOException.throwIt(SW_WRONG_P1P2);
         }
         return 0;
     }
@@ -267,7 +291,7 @@ public class CommandProcessor {
      *
      * return: none
      */
-    private short validateHostCertificate(byte[] buffer) {
+    private short validateHostCertificate(byte[] buffer, short cdatalength) {
         // Check FSM states
         if ((ramBuffer[0] != AppletStateMachine.STATE_ATTESTED || ramBuffer[1] != TransientStateMachine.STATE_INITIALIZED)
                 && (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_LOCKED)) {
@@ -278,6 +302,11 @@ public class CommandProcessor {
         // Check P2 is 0
         if (buffer[ISO7816.OFFSET_P2] != 0) {
             ISOException.throwIt(SW_WRONG_P1P2);
+        }
+        // Check data length
+        if (cdatalength == 0 || buffer[ISO7816.OFFSET_LC] == 0
+                || (short) (buffer[ISO7816.OFFSET_LC] & 0xFF) != cdatalength - (short) (APDU_HEADER_SIZE)) {
+            ISOException.throwIt(SW_WRONG_LENGTH);
         }
         // Check P1 = 0x00, get static certificate
         if (buffer[ISO7816.OFFSET_P1] == P1_VALIDATE_STATIC_CERTIFICATE) {
@@ -325,7 +354,7 @@ public class CommandProcessor {
         app.crypto.setVerificationKey(ramBuffer, (short) (1 + hwSNLength + hwPubKeyLength), issuerPublicKeyLength);
         if (!app.crypto.verifySignature(ramBuffer, (short) 0, (short) (1 + hwSNLength + hwPubKeyLength), buffer, offset,
                 hwCertSignatureLength)) {
-            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+            ISOException.throwIt(SW_SECURITY_STATUS);
         } else {
             Util.arrayCopyNonAtomic(ramBuffer, (short) (1 + hwSNLength), app.hwStaticCertificatePublicKey, (short) 0, hwPubKeyLength);
             app.hwStaticCertificatePublicKeyLength[0] = hwPubKeyLength;
@@ -358,7 +387,7 @@ public class CommandProcessor {
         if (!app.crypto.verifySignature(ramBuffer, (short) 0,
                 (short) (1 + hostChallengeLength + cardChallengeLength + hwEphemeralPublicKeyLength), buffer, offset,
                 hwEphemeralCertSignatureLength)) {
-            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+            ISOException.throwIt(SW_SECURITY_STATUS);
         } else {
             // Generate fixed info and session keys
             // Set fixed info offset
@@ -394,27 +423,61 @@ public class CommandProcessor {
         return 0;
     }
 
-    private short setPIN(byte[] buffer) {
+    private short setPIN(byte[] buffer, short cdatalength) {
         // Check FSM states
         if (ramBuffer[0] != AppletStateMachine.STATE_ATTESTED || ramBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
+        // Check P1 and P2 are 0
+        if (buffer[ISO7816.OFFSET_P1] != 0 || buffer[ISO7816.OFFSET_P2] != 0) {
+            ISOException.throwIt(SW_WRONG_P1P2);
+        }
+        // Check data presence
+        if (cdatalength == 0 || buffer[ISO7816.OFFSET_LC] == 0) {
+            ISOException.throwIt(SW_MISSING_SCP_LEDGER);
+        }
+        // Check data length
+        if (cdatalength != buffer[ISO7816.OFFSET_LC] + APDU_HEADER_SIZE) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+
         // Decrypt data
-        app.capsule.decryptData(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC], ramBuffer, (short) 0);
+        short plainDataLength = app.capsule.decryptData(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC], ramBuffer, (short) 0);
+        // Check plain PIN data length
+        if (plainDataLength != ramBuffer[0] + 1) {
+            ISOException.throwIt(SW_INCORRECT_PARAMETERS);
+        }
         // Set PIN in transient memory
         app.pinManager.createPIN(ramBuffer);
         return 0;
+
     }
 
-    private short verifyPIN(byte[] buffer) {
+    private short verifyPIN(byte[] buffer, short cdatalength) {
         boolean pinVerified = false;
         byte triesRemaining = 0;
         // Check FSM states
         if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
+        // Check P1 and P2 are 0
+        if (buffer[ISO7816.OFFSET_P1] != 0 || buffer[ISO7816.OFFSET_P2] != 0) {
+            ISOException.throwIt(SW_WRONG_P1P2);
+        }
+        // Check data presence
+        if (cdatalength == 0 || buffer[ISO7816.OFFSET_LC] == 0) {
+            ISOException.throwIt(SW_MISSING_SCP_LEDGER);
+        }
+        // Check data length
+        if (cdatalength != buffer[ISO7816.OFFSET_LC] + APDU_HEADER_SIZE) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
         // Decrypt data
-        app.capsule.decryptData(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC], ramBuffer, (short) 0);
+        short plainDataLength = app.capsule.decryptData(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC], ramBuffer, (short) 0);
+        // Check plain PIN data length
+        if (plainDataLength != ramBuffer[0] + 1) {
+            ISOException.throwIt(SW_INCORRECT_PARAMETERS);
+        }
         // Verify PIN
         pinVerified = app.pinManager.verifyPIN(ramBuffer);
         if (!pinVerified) {
@@ -434,19 +497,35 @@ public class CommandProcessor {
             }
         } else {
             app.isPinVerifiedForUpgrade[0] = true;
+            // Set FSM state
+            app.transientFSM.transition(TransientStateMachine.EVENT_PIN_VERIFIED);
         }
-        // Set FSM state
-        app.transientFSM.transition(TransientStateMachine.EVENT_PIN_VERIFIED);
         return 0;
     }
 
-    private short changePIN(byte[] buffer) {
+    private short changePIN(byte[] buffer, short cdatalength) {
         // Check FSM states
         if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
+        // Check P1 and P2 are 0
+        if (buffer[ISO7816.OFFSET_P1] != 0 || buffer[ISO7816.OFFSET_P2] != 0) {
+            ISOException.throwIt(SW_WRONG_P1P2);
+        }
+        // Check data presence
+        if (cdatalength == 0 || buffer[ISO7816.OFFSET_LC] == 0) {
+            ISOException.throwIt(SW_MISSING_SCP_LEDGER);
+        }
+        // Check data length
+        if (cdatalength != buffer[ISO7816.OFFSET_LC] + APDU_HEADER_SIZE) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
         // Decrypt data
-        app.capsule.decryptData(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC], ramBuffer, (short) 0);
+        short plainDataLength = app.capsule.decryptData(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC], ramBuffer, (short) 0);
+        // Check plain PIN data length
+        if (plainDataLength != ramBuffer[0] + 1) {
+            ISOException.throwIt(SW_INCORRECT_PARAMETERS);
+        }
         // Change PIN
         app.pinManager.changePIN(ramBuffer);
         return 0;
@@ -635,22 +714,22 @@ public class CommandProcessor {
             cdatalength = getPublicKey(buffer);
             break;
         case INS_SET_CERTIFICATE:
-            cdatalength = setCertificate(buffer);
+            cdatalength = setCertificate(buffer, cdatalength);
             break;
         case INS_GET_CARD_CERTIFICATE:
             cdatalength = getCardCertificate(buffer);
             break;
         case INS_VALIDATE_HOST_CERTIFICATE:
-            cdatalength = validateHostCertificate(buffer);
+            cdatalength = validateHostCertificate(buffer, cdatalength);
             break;
         case INS_SET_PIN:
-            cdatalength = setPIN(buffer);
+            cdatalength = setPIN(buffer, cdatalength);
             break;
         case INS_VERIFY_PIN:
-            cdatalength = verifyPIN(buffer);
+            cdatalength = verifyPIN(buffer, cdatalength);
             break;
         case INS_PIN_CHANGE:
-            cdatalength = changePIN(buffer);
+            cdatalength = changePIN(buffer, cdatalength);
             break;
         case INS_SET_SEED:
             cdatalength = setSeed(buffer);

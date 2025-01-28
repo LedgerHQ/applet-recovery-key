@@ -25,9 +25,9 @@ public class TransientStateMachine {
     public static final byte EVENT_SET_CERTIFICATE = 0;
     public static final byte EVENT_CERT_VALID = 1;
     public static final byte EVENT_PIN_VERIFIED = 2;
-    public static final byte EVENT_PIN_TRY_LIMIT_EXCEEDED = 2;
-    public static final byte EVENT_APPLET_DESELECTED = 3;
-    public static final byte EVENT_FACTORY_RESET = 4;
+    public static final byte EVENT_PIN_TRY_LIMIT_EXCEEDED = 3;
+    public static final byte EVENT_APPLET_DESELECTED = 4;
+    public static final byte EVENT_FACTORY_RESET = 5;
 
     private byte currentState;
     private AppletStateMachine appletStateMachine;

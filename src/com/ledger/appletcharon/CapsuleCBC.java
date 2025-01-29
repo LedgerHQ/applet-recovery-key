@@ -85,6 +85,8 @@ public class CapsuleCBC {
         messageDigest.doFinal(sharedSecret, (short) 0, sharedSecretLength, rawEncSessionKey, (short) 0);
         // Initialize AES key
         encSessionKey.setKey(rawEncSessionKey, (short) 0);
+        // Erase rawEncSessionKey
+        Util.arrayFill(rawEncSessionKey, (short) 0, (short) rawEncSessionKey.length, (byte) 0);
         // Increment key counter and update shared secret
         key_counter[3]++;
         Util.arrayCopy(key_counter, (short) 0, sharedSecret, (short) 0, KEY_COUNTER_LENGTH);
@@ -95,6 +97,8 @@ public class CapsuleCBC {
         // allowed by
         // LENGTH_HMAC_SHA_256_BLOCK_64 is 64 bits.
         macSessionKey.setKey(rawMacSessionKey, (short) 0, (short) (macSessionKey.getSize() / 8));
+        // Erase rawMacSessionKey
+        Util.arrayFill(rawMacSessionKey, (short) 0, (short) rawMacSessionKey.length, (byte) 0);
     }
 
     protected short encryptData(byte[] plaintext, short plaintextOffset, short plaintextLength, byte[] ciphertext, short ciphertextOffset) {

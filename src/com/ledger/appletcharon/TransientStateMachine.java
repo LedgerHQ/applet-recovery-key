@@ -1,5 +1,10 @@
 package com.ledger.appletcharon;
 
+import static com.ledger.appletcharon.Constants.SW_FATAL_ERROR_DURING_INIT;
+
+import javacard.framework.ISOException;
+import javacard.framework.JCSystem;
+
 // Class that manages the transient states of the applet,
 // The transient state machine is instantiated when a select
 // command is received and is cleared when the applet is deselected.
@@ -8,10 +13,6 @@ package com.ledger.appletcharon;
 // it can transition to the authenticated state if the certificate from
 // the host is valid, and finally to the unlocked state if the user
 // enters the correct PIN.
-import static com.ledger.appletcharon.AppletCharon.staticThrowFatalError;
-
-import javacard.framework.JCSystem;
-
 public class TransientStateMachine {
     // Constants for states
     public static final byte STATE_IDLE = 0;
@@ -30,6 +31,7 @@ public class TransientStateMachine {
 
     private byte currentState;
     private AppletStateMachine appletStateMachine;
+    private FatalError fatalError;
 
     public TransientStateMachine(AppletStateMachine appletStateMachine) {
         this.appletStateMachine = appletStateMachine;
@@ -54,13 +56,13 @@ public class TransientStateMachine {
         try {
             if (!isValidState(newState)) {
                 JCSystem.abortTransaction();
-                staticThrowFatalError();
+                throwFatalError();
             }
             currentState = newState;
             JCSystem.commitTransaction();
         } catch (Exception e) {
             JCSystem.abortTransaction();
-            staticThrowFatalError();
+            throwFatalError();
         }
     }
 
@@ -121,7 +123,7 @@ public class TransientStateMachine {
             }
             break;
         default:
-            staticThrowFatalError();
+            throwFatalError();
             break;
         }
 
@@ -132,9 +134,21 @@ public class TransientStateMachine {
 
     public byte getCurrentState() {
         if (!isValidState(currentState)) {
-            staticThrowFatalError();
+            throwFatalError();
         }
         return currentState;
+    }
+
+    public void setFatalError(FatalError fatalError) {
+        this.fatalError = fatalError;
+    }
+
+    private void throwFatalError() {
+        if (fatalError != null) {
+            throwFatalError();
+        } else {
+            ISOException.throwIt(SW_FATAL_ERROR_DURING_INIT);
+        }
     }
 
     public void setStateOnFatalError() {

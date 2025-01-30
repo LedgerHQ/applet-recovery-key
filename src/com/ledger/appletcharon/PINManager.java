@@ -1,7 +1,6 @@
 package com.ledger.appletcharon;
 
-import static com.ledger.appletcharon.AppletCharon.staticThrowFatalError;
-import static com.ledger.appletcharon.Constants.SW_PIN_COUNTER_CHANGED;
+import static com.ledger.appletcharon.Constants.SW_FATAL_ERROR_DURING_INIT;
 
 import org.globalplatform.upgrade.Element;
 import org.globalplatform.upgrade.UpgradeManager;
@@ -25,6 +24,7 @@ public class PINManager {
 
     private OwnerPIN pin;
     private byte pinStatus;
+    private FatalError fatalError;
 
     public PINManager() {
         pin = new OwnerPIN(PIN_TRY_LIMIT, PIN_MAX_SIZE);
@@ -48,13 +48,13 @@ public class PINManager {
         try {
             if (!isValidState(status)) {
                 JCSystem.abortTransaction();
-                staticThrowFatalError();
+                throwFatalError();
             }
             pinStatus = status;
             JCSystem.commitTransaction();
         } catch (Exception e) {
             JCSystem.abortTransaction();
-            throw e;
+            throwFatalError();
         }
     }
 
@@ -69,8 +69,7 @@ public class PINManager {
         }
         pin.update(buffer, (short) PIN_DATA_OFFSET, pinLength);
         if (!pin.check(buffer, (short) PIN_DATA_OFFSET, pinLength)) {
-            // This should not happen
-            ISOException.throwIt((short) (SW_PIN_COUNTER_CHANGED + pin.getTriesRemaining()));
+            throwFatalError();
         }
         setPinStatus(PIN_STATUS_SET);
     }
@@ -110,6 +109,18 @@ public class PINManager {
         setPinStatus(PIN_STATUS_NOT_SET);
     }
 
+    public void setFatalError(FatalError fatalError) {
+        this.fatalError = fatalError;
+    }
+
+    private void throwFatalError() {
+        if (fatalError != null) {
+            throwFatalError();
+        } else {
+            ISOException.throwIt(SW_FATAL_ERROR_DURING_INIT);
+        }
+    }
+
     public void resetPINOnFatalError() {
         // !!!!! WARNING !!!!!
         // ======================================
@@ -132,7 +143,7 @@ public class PINManager {
 
     public byte getPINStatus() {
         if (!isValidState(pinStatus)) {
-            staticThrowFatalError();
+            throwFatalError();
         }
         return pinStatus;
     }

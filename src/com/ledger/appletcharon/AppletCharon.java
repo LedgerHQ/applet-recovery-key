@@ -24,7 +24,6 @@ import static com.ledger.appletcharon.Constants.RAM_BUFFER_SIZE;
 import static com.ledger.appletcharon.Constants.SECURITY_LEVEL_MASK;
 import static com.ledger.appletcharon.Constants.SN_LENGTH;
 import static com.ledger.appletcharon.Constants.SW_FATAL_ERROR;
-import static com.ledger.appletcharon.Constants.SW_FATAL_ERROR_DURING_INIT;
 import static com.ledger.appletcharon.Constants.SW_INCORRECT_PARAMETERS;
 import static com.ledger.appletcharon.Constants.SW_INCORRECT_SCP03;
 import static com.ledger.appletcharon.Constants.SW_REFERENCE_DATA_NOT_FOUND;
@@ -45,7 +44,6 @@ import org.globalplatform.upgrade.UpgradeManager;
 
 import javacard.framework.APDU;
 import javacard.framework.Applet;
-import javacard.framework.CardRuntimeException;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
@@ -104,8 +102,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     // Command processor
     private CommandProcessor commandProcessor;
 
-    // Singleton instance
-    private static AppletCharon instance;
+    private FatalError fatalError;
 
     @Override
     public Element onSave() {
@@ -162,6 +159,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             appletFSM.transition(AppletStateMachine.EVENT_SET_SEED);
         }
         transientFSM.setOnSelectState();
+        this.enableFatalErrorHandling();
     }
 
     /**
@@ -254,6 +252,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         cardName = new byte[MAX_CARD_NAME_LENGTH];
         isPinVerifiedForUpgrade = JCSystem.makeTransientBooleanArray((short) 1, JCSystem.CLEAR_ON_RESET);
         commandProcessor = new CommandProcessor(this, ramBuffer);
+        fatalError = new FatalError(this);
 
         if (UpgradeManager.isUpgrading() == false) {
             certificatePrivateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, crypto.getCurve().getCurveLength(),
@@ -263,20 +262,21 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             // Get the serial number from the install data
             getSerialNumberFromInstallData(bArray, bOffset);
             cardCertificate.setSerialNumber(serialNumber, (short) 0, (short) SN_LENGTH);
+            // Initialize the fatal error handler
+            enableFatalErrorHandling();
         }
-        instance = this;
         register(bArray, ((short) (bOffset + 1)), bArray[bOffset]);
     }
 
-    public static void staticThrowFatalError() {
-        if (instance != null) {
-            instance.throwFatalError();
-        } else {
-            CardRuntimeException.throwIt(SW_FATAL_ERROR_DURING_INIT);
-        }
+    private void enableFatalErrorHandling() {
+        pinManager.setFatalError(fatalError);
+        seedManager.setFatalError(fatalError);
+        appletFSM.setFatalError(fatalError);
+        transientFSM.setFatalError(fatalError);
+        fatalError.setInitDone();
     }
 
-    private void throwFatalError() {
+    public void throwFatalError() {
         try {
             // Reset card name length
             cardNameLength = 0;
@@ -292,7 +292,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             // Reset FSM states (lifecycle : attested, transient : initialized)
             appletFSM.setStateOnFatalError();
             transientFSM.setStateOnFatalError();
-            CardRuntimeException.throwIt(SW_FATAL_ERROR);
+            ISOException.throwIt(SW_FATAL_ERROR);
         }
     }
 

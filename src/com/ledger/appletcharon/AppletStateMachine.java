@@ -1,7 +1,8 @@
 package com.ledger.appletcharon;
 
-import static com.ledger.appletcharon.AppletCharon.staticThrowFatalError;
+import static com.ledger.appletcharon.Constants.SW_FATAL_ERROR_DURING_INIT;
 
+import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 
 public class AppletStateMachine {
@@ -17,6 +18,7 @@ public class AppletStateMachine {
     public static final byte EVENT_FACTORY_RESET = 3;
 
     private byte currentState;
+    private FatalError fatalError;
 
     public AppletStateMachine() {
         setCurrentState(STATE_FABRICATION);
@@ -38,7 +40,7 @@ public class AppletStateMachine {
         try {
             if (!isValidState(newState)) {
                 JCSystem.abortTransaction();
-                staticThrowFatalError();
+                throwFatalError();
             }
             currentState = newState;
             JCSystem.commitTransaction();
@@ -68,7 +70,7 @@ public class AppletStateMachine {
             }
             break;
         default:
-            staticThrowFatalError();
+            throwFatalError();
             break;
         }
 
@@ -79,9 +81,21 @@ public class AppletStateMachine {
 
     public byte getCurrentState() {
         if (!isValidState(currentState)) {
-            staticThrowFatalError();
+            throwFatalError();
         }
         return currentState;
+    }
+
+    public void setFatalError(FatalError fatalError) {
+        this.fatalError = fatalError;
+    }
+
+    private void throwFatalError() {
+        if (fatalError != null) {
+            throwFatalError();
+        } else {
+            ISOException.throwIt(SW_FATAL_ERROR_DURING_INIT);
+        }
     }
 
     public void setStateOnFatalError() {

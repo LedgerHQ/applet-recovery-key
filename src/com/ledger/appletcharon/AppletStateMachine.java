@@ -92,7 +92,7 @@ public class AppletStateMachine {
 
     private void throwFatalError() {
         if (fatalError != null) {
-            throwFatalError();
+            fatalError.throwIt();
         } else {
             ISOException.throwIt(SW_FATAL_ERROR_DURING_INIT);
         }

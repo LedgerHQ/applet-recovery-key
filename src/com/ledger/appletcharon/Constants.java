@@ -9,9 +9,6 @@ public final class Constants {
 
     // Card info constants
     protected static final byte CARD_CERT_ROLE = (byte) 0x0A;
-    protected static final byte APPLET_MAJOR_VERSION = (byte) 0x00;
-    protected static final byte APPLET_MINOR_VERSION = (byte) 0x01;
-    protected static final byte APPLET_PATCH_VERSION = (byte) 0x00;
     protected static final byte CARD_TARGET_ID[] = { (byte) 0x33, (byte) 0x40, (byte) 0x00, (byte) 0x04 };
     protected static final byte MAX_CARD_NAME_LENGTH = 32;
     protected static final byte SN_LENGTH = 4;
@@ -47,7 +44,7 @@ public final class Constants {
     // Instruction classes
     protected static final byte GP_CLA_INITIALIZE_UPDATE = (byte) 0x80;
     protected static final byte GP_CLA_EXTERNAL_AUTHENTICATE = (byte) 0x84;
-    // Instruction codesUPDAT
+    // Instruction codes
     protected static final byte GP_INS_INITIALIZE_UPDATE = (byte) 0x50;
     protected static final byte GP_INS_EXTERNAL_AUTHENTICATE = (byte) 0x82;
 

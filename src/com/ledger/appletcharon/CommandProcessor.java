@@ -1,9 +1,6 @@
 package com.ledger.appletcharon;
 
 import static com.ledger.appletcharon.Constants.APDU_HEADER_SIZE;
-import static com.ledger.appletcharon.Constants.APPLET_MAJOR_VERSION;
-import static com.ledger.appletcharon.Constants.APPLET_MINOR_VERSION;
-import static com.ledger.appletcharon.Constants.APPLET_PATCH_VERSION;
 import static com.ledger.appletcharon.Constants.CARD_CERT_ROLE;
 import static com.ledger.appletcharon.Constants.CARD_TARGET_ID;
 import static com.ledger.appletcharon.Constants.DATA_CARD_NAME_TAG;
@@ -30,6 +27,9 @@ import static com.ledger.appletcharon.Constants.SW_REFERENCE_DATA_NOT_FOUND;
 import static com.ledger.appletcharon.Constants.SW_WRONG_LENGTH;
 import static com.ledger.appletcharon.Constants.SW_WRONG_P1P2;
 import static com.ledger.appletcharon.Utils.buildTLVField;
+import static com.ledger.appletcharon.Version.APPLET_MAJOR_VERSION;
+import static com.ledger.appletcharon.Version.APPLET_MINOR_VERSION;
+import static com.ledger.appletcharon.Version.APPLET_PATCH_VERSION;
 
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;

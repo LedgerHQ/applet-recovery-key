@@ -1,7 +1,7 @@
 package com.ledger.appletcharon;
 
-import javacard.framework.ISO7816;
-import javacard.framework.ISOException;
+import static com.ledger.appletcharon.AppletCharon.staticThrowFatalError;
+
 import javacard.framework.JCSystem;
 
 public class AppletStateMachine {
@@ -38,10 +38,8 @@ public class AppletStateMachine {
         try {
             if (!isValidState(newState)) {
                 JCSystem.abortTransaction();
-                // TODO: implement "fatal error". This should never happen.
-                ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+                staticThrowFatalError();
             }
-
             currentState = newState;
             JCSystem.commitTransaction();
         } catch (Exception e) {
@@ -70,8 +68,7 @@ public class AppletStateMachine {
             }
             break;
         default:
-            // TODO: implement "fatal error". This should never happen.
-            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+            staticThrowFatalError();
             break;
         }
 
@@ -82,9 +79,17 @@ public class AppletStateMachine {
 
     public byte getCurrentState() {
         if (!isValidState(currentState)) {
-            // TODO: implement "fatal error". This should never happen.
-            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+            staticThrowFatalError();
         }
         return currentState;
+    }
+
+    public void setStateOnFatalError() {
+        // !!!!! WARNING !!!!!
+        // ======================================
+        // This method should only be called from
+        // the applet's fatal error handler.
+        // ======================================
+        currentState = STATE_ATTESTED;
     }
 }

@@ -23,9 +23,10 @@ import static com.ledger.appletcharon.Constants.MAX_HW_PUBLIC_KEY_LENGTH;
 import static com.ledger.appletcharon.Constants.RAM_BUFFER_SIZE;
 import static com.ledger.appletcharon.Constants.SECURITY_LEVEL_MASK;
 import static com.ledger.appletcharon.Constants.SN_LENGTH;
+import static com.ledger.appletcharon.Constants.SW_FATAL_ERROR;
+import static com.ledger.appletcharon.Constants.SW_FATAL_ERROR_DURING_INIT;
 import static com.ledger.appletcharon.Constants.SW_INCORRECT_PARAMETERS;
 import static com.ledger.appletcharon.Constants.SW_INCORRECT_SCP03;
-import static com.ledger.appletcharon.Constants.SW_INVALID_PARAMETER;
 import static com.ledger.appletcharon.Constants.SW_REFERENCE_DATA_NOT_FOUND;
 import static com.ledger.appletcharon.Constants.SW_WRONG_LENGTH;
 import static com.ledger.appletcharon.Constants.TAG_KEY_ID;
@@ -44,6 +45,7 @@ import org.globalplatform.upgrade.UpgradeManager;
 
 import javacard.framework.APDU;
 import javacard.framework.Applet;
+import javacard.framework.CardRuntimeException;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
@@ -101,6 +103,9 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
 
     // Command processor
     private CommandProcessor commandProcessor;
+
+    // Singleton instance
+    private static AppletCharon instance;
 
     @Override
     public Element onSave() {
@@ -219,7 +224,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             serialNumber = new byte[SN_LENGTH];
             Util.arrayCopyNonAtomic(bArray, (short) (offset + 1), serialNumber, (short) 0, SN_LENGTH);
         } else {
-            ISOException.throwIt(SW_INVALID_PARAMETER);
+            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         }
     }
 
@@ -259,7 +264,36 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             getSerialNumberFromInstallData(bArray, bOffset);
             cardCertificate.setSerialNumber(serialNumber, (short) 0, (short) SN_LENGTH);
         }
+        instance = this;
         register(bArray, ((short) (bOffset + 1)), bArray[bOffset]);
+    }
+
+    public static void staticThrowFatalError() {
+        if (instance != null) {
+            instance.throwFatalError();
+        } else {
+            CardRuntimeException.throwIt(SW_FATAL_ERROR_DURING_INIT);
+        }
+    }
+
+    private void throwFatalError() {
+        try {
+            // Reset card name length
+            cardNameLength = 0;
+            // Reset PIN
+            pinManager.resetPINOnFatalError();
+            // Reset seed
+            seedManager.clearSeedOnFatalError();
+            // Reset secure channel
+            secureChannel = null;
+        } catch (Exception e) {
+            // Ignore all other exceptions
+        } finally {
+            // Reset FSM states (lifecycle : attested, transient : initialized)
+            appletFSM.setStateOnFatalError();
+            transientFSM.setStateOnFatalError();
+            CardRuntimeException.throwIt(SW_FATAL_ERROR);
+        }
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.ledger.appletcharon;
 
+import static com.ledger.appletcharon.AppletCharon.staticThrowFatalError;
 import static com.ledger.appletcharon.Constants.SW_WRONG_LENGTH;
 
 import org.globalplatform.upgrade.Element;
@@ -92,12 +93,10 @@ public class SeedManager {
             msgDigestSHA256.reset();
             msgDigestSHA256.doFinal(tempBuffer, (short) 0, SEED_LENGTH, derivationBuffer, (short) 0);
             if (Util.arrayCompare(seedSHA256, (short) 0, derivationBuffer, (short) 0, SEED_LENGTH) != 0) {
-                // TODO: implement "fatal error". This should never happen.
-                ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+                staticThrowFatalError();
             }
         } catch (Exception e) {
-            // TODO: implement "fatal error". This should never happen.
-            throw e;
+            staticThrowFatalError();
         }
     }
 
@@ -107,8 +106,7 @@ public class SeedManager {
             // Retrieve the stored seed
             return seedKey.getKey(buffer, offset);
         } catch (CryptoException e) {
-            // TODO: implement "fatal error". This should never happen.
-            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+            staticThrowFatalError();
         }
         return 0;
     }
@@ -123,12 +121,22 @@ public class SeedManager {
             JCSystem.commitTransaction();
         } catch (Exception e) {
             JCSystem.abortTransaction();
-            throw e;
+            staticThrowFatalError();
         }
     }
 
     protected boolean isSeedSet() {
         return seedSet;
+    }
+
+    public void clearSeedOnFatalError() {
+        // !!!!! WARNING !!!!!
+        // ======================================
+        // This method should only be called from
+        // the applet's fatal error handler.
+        // ======================================
+        seedKey.clearKey();
+        seedSet = false;
     }
 
     /**
@@ -229,10 +237,6 @@ public class SeedManager {
     }
 
     static Element save(SeedManager seedManager) {
-        if (seedManager == null || seedManager.seedKey == null) {
-            // TODO: implement "fatal error". This should never happen.
-            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
-        }
         return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 1, (short) 2).write(seedManager.seedSet)
                 .write(seedManager.seedSHA256).write(seedManager.seedKey);
     }

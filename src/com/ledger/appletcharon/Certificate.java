@@ -203,7 +203,6 @@ public class Certificate {
         boolean isVerified = signature.verify(publicKey, (short) 0, publicKeyLength, this.signature, (short) 0, signatureLength);
 
         if (isVerified == false) {
-            // TODO: implement fatal error, this should never happen (?)
             eraseAll();
         }
         return isVerified;

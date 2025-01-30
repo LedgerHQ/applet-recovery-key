@@ -1,5 +1,6 @@
 package com.ledger.appletcharon;
 
+import static com.ledger.appletcharon.AppletCharon.staticThrowFatalError;
 import static com.ledger.appletcharon.Constants.SW_PIN_COUNTER_CHANGED;
 
 import org.globalplatform.upgrade.Element;
@@ -47,8 +48,7 @@ public class PINManager {
         try {
             if (!isValidState(status)) {
                 JCSystem.abortTransaction();
-                // TODO: implement "fatal error". This should never happen.
-                ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+                staticThrowFatalError();
             }
             pinStatus = status;
             JCSystem.commitTransaction();
@@ -110,6 +110,15 @@ public class PINManager {
         setPinStatus(PIN_STATUS_NOT_SET);
     }
 
+    public void resetPINOnFatalError() {
+        // !!!!! WARNING !!!!!
+        // ======================================
+        // This method should only be called from
+        // the applet's fatal error handler.
+        // ======================================
+        pinStatus = PIN_STATUS_NOT_SET;
+    }
+
     public void changePIN(byte[] buffer) {
         if (getPINStatus() != PIN_STATUS_ACTIVATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
@@ -123,8 +132,7 @@ public class PINManager {
 
     public byte getPINStatus() {
         if (!isValidState(pinStatus)) {
-            // TODO: implement "fatal error". This should never happen.
-            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+            staticThrowFatalError();
         }
         return pinStatus;
     }

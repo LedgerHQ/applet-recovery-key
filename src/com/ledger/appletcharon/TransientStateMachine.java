@@ -8,6 +8,10 @@ package com.ledger.appletcharon;
 // it can transition to the authenticated state if the certificate from
 // the host is valid, and finally to the unlocked state if the user
 // enters the correct PIN.
+import javacard.framework.ISO7816;
+import javacard.framework.ISOException;
+import javacard.framework.JCSystem;
+
 public class TransientStateMachine {
     // Constants for states
     public static final byte STATE_IDLE = 0;
@@ -29,57 +33,111 @@ public class TransientStateMachine {
 
     public TransientStateMachine(AppletStateMachine appletStateMachine) {
         this.appletStateMachine = appletStateMachine;
-        currentState = STATE_IDLE;
+        setCurrentState(STATE_IDLE);
     }
 
-    public void setOnSelectState() {
-        if (appletStateMachine.getCurrentState() == AppletStateMachine.STATE_FABRICATION) {
-            currentState = STATE_IDLE;
-        } else if (appletStateMachine.getCurrentState() == AppletStateMachine.STATE_ATTESTED) {
-            currentState = STATE_INITIALIZED;
-        } else {
-            currentState = STATE_PIN_LOCKED;
+    private boolean isValidState(byte state) {
+        switch (state) {
+        case STATE_IDLE:
+        case STATE_INITIALIZED:
+        case STATE_PIN_LOCKED:
+        case STATE_AUTHENTICATED:
+        case STATE_PIN_UNLOCKED:
+            return true;
+        default:
+            return false;
         }
     }
 
+    private void setCurrentState(byte newState) {
+        JCSystem.beginTransaction();
+        try {
+            if (!isValidState(newState)) {
+                JCSystem.abortTransaction();
+                // TODO: implement "fatal error". This should never happen.
+                ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+            }
+
+            currentState = newState;
+            JCSystem.commitTransaction();
+        } catch (Exception e) {
+            JCSystem.abortTransaction();
+            throw e;
+        }
+    }
+
+    public void setOnSelectState() {
+        byte newState;
+        byte appletState = appletStateMachine.getCurrentState();
+
+        if (appletState == AppletStateMachine.STATE_FABRICATION) {
+            newState = STATE_IDLE;
+        } else if (appletState == AppletStateMachine.STATE_ATTESTED) {
+            newState = STATE_INITIALIZED;
+        } else {
+            newState = STATE_PIN_LOCKED;
+        }
+
+        setCurrentState(newState);
+    }
+
     public void transition(byte event) {
+        byte newState = currentState;
+
         switch (currentState) {
         case STATE_IDLE:
             if (event == EVENT_SET_CERTIFICATE) {
-                currentState = STATE_INITIALIZED;
+                newState = STATE_INITIALIZED;
             }
             break;
+
         case STATE_INITIALIZED:
             if (event == EVENT_CERT_VALID) {
-                currentState = STATE_AUTHENTICATED;
+                newState = STATE_AUTHENTICATED;
             }
             break;
+
         case STATE_PIN_LOCKED:
             if (event == EVENT_CERT_VALID) {
-                currentState = STATE_AUTHENTICATED;
-            }
-        case STATE_AUTHENTICATED:
-            if (event == EVENT_PIN_VERIFIED) {
-                currentState = STATE_PIN_UNLOCKED;
-            } else if (event == EVENT_PIN_TRY_LIMIT_EXCEEDED) {
-                currentState = STATE_INITIALIZED;
+                newState = STATE_AUTHENTICATED;
             }
             break;
+
+        case STATE_AUTHENTICATED:
+            if (event == EVENT_PIN_VERIFIED) {
+                newState = STATE_PIN_UNLOCKED;
+            } else if (event == EVENT_PIN_TRY_LIMIT_EXCEEDED) {
+                newState = STATE_INITIALIZED;
+            }
+            break;
+
         case STATE_PIN_UNLOCKED:
             if (event == EVENT_APPLET_DESELECTED) {
                 if (appletStateMachine.getCurrentState() == AppletStateMachine.STATE_USER_PERSONALIZED) {
-                    currentState = STATE_PIN_LOCKED;
+                    newState = STATE_PIN_LOCKED;
                 } else {
-                    currentState = STATE_INITIALIZED;
+                    newState = STATE_INITIALIZED;
                 }
             } else if (event == EVENT_FACTORY_RESET) {
-                currentState = STATE_INITIALIZED;
+                newState = STATE_INITIALIZED;
             }
             break;
+        default:
+            // TODO: implement "fatal error". This should never happen.
+            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+            break;
+        }
+
+        if (newState != currentState) {
+            setCurrentState(newState);
         }
     }
 
     public byte getCurrentState() {
+        if (!isValidState(currentState)) {
+            // TODO: implement "fatal error". This should never happen.
+            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+        }
         return currentState;
     }
 }

@@ -11,6 +11,8 @@ import javacard.security.AESKey;
 import javacard.security.CryptoException;
 import javacard.security.HMACKey;
 import javacard.security.KeyBuilder;
+import javacard.security.MessageDigest;
+import javacard.security.RandomData;
 import javacard.security.Signature;
 
 public class SeedManager {
@@ -23,21 +25,30 @@ public class SeedManager {
     private static final int DERIVATION_PATH_INDEX_2 = 0x82000000;
     private static final int DERIVATION_PATH_INDEX_3 = 0x80000001;
     private static final byte DERIVATION_KEY_LENGTH = 16;
+    private static final byte SHA256_LENGTH = 32;
 
     protected AESKey seedKey;
+    private HMACKey hmacKey;
+    private MessageDigest msgDigestSHA256;
+    private byte[] seedSHA256;
     private Signature hmacSha512;
     private CryptoUtil crypto;
+    private RandomData randomData;
     private byte[] tempBuffer;
     private byte[] derivationBuffer;
+    private boolean seedSet;
 
     public SeedManager() {
         crypto = null;
-        seedKey = null;
-        // Initialize HMAC-SHA512
+        seedKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_256, false);
+        seedSet = false;
+        msgDigestSHA256 = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, false);
+        seedSHA256 = new byte[SHA256_LENGTH];
+        hmacKey = (HMACKey) KeyBuilder.buildKey(KeyBuilder.TYPE_HMAC, KeyBuilder.LENGTH_HMAC_SHA_512_BLOCK_128, false);
         hmacSha512 = Signature.getInstance(Signature.ALG_HMAC_SHA_512, false);
-        // Initialize temporary buffers in transient memory
         tempBuffer = JCSystem.makeTransientByteArray((short) 128, JCSystem.CLEAR_ON_DESELECT);
         derivationBuffer = JCSystem.makeTransientByteArray((short) 64, JCSystem.CLEAR_ON_DESELECT);
+        randomData = RandomData.getInstance(RandomData.ALG_TRNG);
     }
 
     public void setCryptoUtil(CryptoUtil cryptoUtil) {
@@ -45,40 +56,77 @@ public class SeedManager {
     }
 
     protected void setSeed(byte[] seed_data) {
-        if (seedKey != null) {
+        if (seedSet == true) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
+
+        clearSeed();
 
         if (seed_data[SEED_DATA_LENGTH_OFFSET] != SEED_LENGTH) {
             ISOException.throwIt(com.ledger.appletcharon.AppletCharon.SW_WRONG_LENGTH);
         }
 
         try {
-            seedKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_256, false);
+            JCSystem.beginTransaction();
             // Store the seed as key data
             seedKey.setKey(seed_data, (short) SEED_DATA_OFFSET);
+            msgDigestSHA256.reset();
+            msgDigestSHA256.doFinal(seed_data, SEED_DATA_OFFSET, SEED_LENGTH, seedSHA256, (short) 0);
+            seedSet = true;
+            JCSystem.commitTransaction();
         } catch (CryptoException e) {
+            JCSystem.abortTransaction();
             ISOException.throwIt(e.getReason());
         }
     }
 
+    protected void checkSeed() {
+        if (seedSet == false) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        try {
+            // Retrieve the stored seed
+            seedKey.getKey(tempBuffer, (short) 0);
+            msgDigestSHA256.reset();
+            msgDigestSHA256.doFinal(tempBuffer, (short) 0, SEED_LENGTH, derivationBuffer, (short) 0);
+            if (Util.arrayCompare(seedSHA256, (short) 0, derivationBuffer, (short) 0, SEED_LENGTH) != 0) {
+                // TODO: implement "fatal error". This should never happen.
+                ISOException.throwIt(ISO7816.SW_DATA_INVALID);
+            }
+        } catch (Exception e) {
+            // TODO: implement "fatal error". This should never happen.
+            throw e;
+        }
+    }
+
     protected byte restoreSeed(byte[] buffer, short offset) {
+        checkSeed();
         try {
             // Retrieve the stored seed
             return seedKey.getKey(buffer, offset);
         } catch (CryptoException e) {
+            // TODO: implement "fatal error". This should never happen.
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         return 0;
     }
 
     protected void clearSeed() {
-        if (seedKey == null) {
-            return;
+        try {
+            JCSystem.beginTransaction();
+            randomData.nextBytes(tempBuffer, (short) 0, SEED_LENGTH);
+            seedKey.clearKey();
+            seedKey.setKey(tempBuffer, (short) 0);
+            seedSet = false;
+            JCSystem.commitTransaction();
+        } catch (Exception e) {
+            JCSystem.abortTransaction();
+            throw e;
         }
-        seedKey.clearKey();
-        seedKey = null;
-        JCSystem.requestObjectDeletion();
+    }
+
+    protected boolean isSeedSet() {
+        return seedSet;
     }
 
     /**
@@ -86,8 +134,8 @@ public class SeedManager {
      */
     private void computeHmacSha512(byte[] key, short keyOffset, short keyLength, byte[] data, short dataOffset, short dataLength,
             byte[] output, short outputOffset) {
-        // Create temporary HMAC key
-        HMACKey hmacKey = (HMACKey) KeyBuilder.buildKey(KeyBuilder.TYPE_HMAC, KeyBuilder.LENGTH_HMAC_SHA_512_BLOCK_128, false);
+        // Set HMAC key
+        hmacKey.clearKey();
         hmacKey.setKey(key, keyOffset, keyLength);
 
         // Initialize HMAC with the key
@@ -142,7 +190,7 @@ public class SeedManager {
     }
 
     protected short signChallenge(byte[] challenge, short challengeOffset, short challengeLength, byte[] output, short outputOffset) {
-        if (seedKey == null) {
+        if (seedSet == false) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
 
@@ -180,9 +228,11 @@ public class SeedManager {
 
     static Element save(SeedManager seedManager) {
         if (seedManager == null || seedManager.seedKey == null) {
-            return null;
+            // TODO: implement "fatal error". This should never happen.
+            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
         }
-        return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 0, (short) 1).write(seedManager.seedKey);
+        return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 1, (short) 2).write(seedManager.seedSet)
+                .write(seedManager.seedSHA256).write(seedManager.seedKey);
     }
 
     static SeedManager restore(Element element) {
@@ -190,6 +240,8 @@ public class SeedManager {
             return null;
         }
         SeedManager seedManager = new SeedManager();
+        seedManager.seedSet = element.readBoolean();
+        seedManager.seedSHA256 = (byte[]) element.readObject();
         seedManager.seedKey = (AESKey) element.readObject();
         return seedManager;
     }

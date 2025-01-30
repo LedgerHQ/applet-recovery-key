@@ -1,5 +1,7 @@
 package com.ledger.appletcharon;
 
+import static com.ledger.appletcharon.Constants.SW_PIN_COUNTER_CHANGED;
+
 import org.globalplatform.upgrade.Element;
 import org.globalplatform.upgrade.UpgradeManager;
 
@@ -68,7 +70,7 @@ public class PINManager {
         pin.update(buffer, (short) PIN_DATA_OFFSET, pinLength);
         if (!pin.check(buffer, (short) PIN_DATA_OFFSET, pinLength)) {
             // This should not happen
-            ISOException.throwIt((short) (com.ledger.appletcharon.AppletCharon.SW_PIN_COUNTER_CHANGED + pin.getTriesRemaining()));
+            ISOException.throwIt((short) (SW_PIN_COUNTER_CHANGED + pin.getTriesRemaining()));
         }
         setPinStatus(PIN_STATUS_SET);
     }

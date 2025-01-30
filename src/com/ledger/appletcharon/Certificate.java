@@ -5,7 +5,7 @@
 
 package com.ledger.appletcharon;
 
-import static com.ledger.appletcharon.AppletCharon.SN_LENGTH;
+import static com.ledger.appletcharon.Constants.SN_LENGTH;
 
 import org.globalplatform.upgrade.Element;
 import org.globalplatform.upgrade.UpgradeManager;

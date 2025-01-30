@@ -1,5 +1,7 @@
 package com.ledger.appletcharon;
 
+import static com.ledger.appletcharon.Constants.SW_INCORRECT_SCP_LEDGER;
+
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
@@ -148,7 +150,7 @@ public class CapsuleCBC {
         // Get and verify IV length
         byte ivLength = inData[currentOffset++];
         if (ivLength != AES_CBC_IV_LENGTH) {
-            ISOException.throwIt((short) com.ledger.appletcharon.AppletCharon.SW_INCORRECT_SCP_LEDGER);
+            ISOException.throwIt((short) SW_INCORRECT_SCP_LEDGER);
         }
 
         // Get IV
@@ -169,7 +171,7 @@ public class CapsuleCBC {
         hmac.init(macSessionKey, Signature.MODE_VERIFY);
         boolean validMac = hmac.verify(inData, cipherOffset, cipherLength, inData, currentOffset, macLength);
         if (!validMac) {
-            ISOException.throwIt((short) com.ledger.appletcharon.AppletCharon.SW_INCORRECT_SCP_LEDGER);
+            ISOException.throwIt((short) SW_INCORRECT_SCP_LEDGER);
         }
 
         // Initialize AES cipher
@@ -180,7 +182,7 @@ public class CapsuleCBC {
         try {
             plaintextLength = cipher.doFinal(inData, cipherOffset, cipherLength, plaintext, plaintextOffset);
         } catch (Exception e) {
-            ISOException.throwIt((short) com.ledger.appletcharon.AppletCharon.SW_INCORRECT_SCP_LEDGER);
+            ISOException.throwIt((short) SW_INCORRECT_SCP_LEDGER);
         }
 
         return plaintextLength;

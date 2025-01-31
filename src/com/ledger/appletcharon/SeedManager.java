@@ -1,6 +1,6 @@
 package com.ledger.appletcharon;
 
-import static com.ledger.appletcharon.AppletCharon.staticThrowFatalError;
+import static com.ledger.appletcharon.Constants.SW_FATAL_ERROR_DURING_INIT;
 import static com.ledger.appletcharon.Constants.SW_WRONG_LENGTH;
 
 import org.globalplatform.upgrade.Element;
@@ -40,6 +40,7 @@ public class SeedManager {
     private byte[] tempBuffer;
     private byte[] derivationBuffer;
     private boolean seedSet;
+    private FatalError fatalError;
 
     public SeedManager() {
         crypto = null;
@@ -79,7 +80,7 @@ public class SeedManager {
             JCSystem.commitTransaction();
         } catch (CryptoException e) {
             JCSystem.abortTransaction();
-            ISOException.throwIt(e.getReason());
+            throwFatalError();
         }
     }
 
@@ -93,10 +94,10 @@ public class SeedManager {
             msgDigestSHA256.reset();
             msgDigestSHA256.doFinal(tempBuffer, (short) 0, SEED_LENGTH, derivationBuffer, (short) 0);
             if (Util.arrayCompare(seedSHA256, (short) 0, derivationBuffer, (short) 0, SEED_LENGTH) != 0) {
-                staticThrowFatalError();
+                throwFatalError();
             }
         } catch (Exception e) {
-            staticThrowFatalError();
+            throwFatalError();
         }
     }
 
@@ -106,7 +107,7 @@ public class SeedManager {
             // Retrieve the stored seed
             return seedKey.getKey(buffer, offset);
         } catch (CryptoException e) {
-            staticThrowFatalError();
+            throwFatalError();
         }
         return 0;
     }
@@ -121,12 +122,24 @@ public class SeedManager {
             JCSystem.commitTransaction();
         } catch (Exception e) {
             JCSystem.abortTransaction();
-            staticThrowFatalError();
+            throwFatalError();
         }
     }
 
     protected boolean isSeedSet() {
         return seedSet;
+    }
+
+    public void setFatalError(FatalError fatalError) {
+        this.fatalError = fatalError;
+    }
+
+    private void throwFatalError() {
+        if (fatalError != null) {
+            fatalError.throwIt();
+        } else {
+            ISOException.throwIt(SW_FATAL_ERROR_DURING_INIT);
+        }
     }
 
     public void clearSeedOnFatalError() {

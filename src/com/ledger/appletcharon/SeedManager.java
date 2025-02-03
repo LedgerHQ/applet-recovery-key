@@ -63,6 +63,12 @@ public class SeedManager {
         crypto = cryptoUtil;
     }
 
+    private boolean isSeedLengthValid(short length) {
+        return (length == MAX_SEED_LENGTH)
+                || (length == SEED_LENGTH_12_WORDS)
+                || (length == SEED_LENGTH_18_WORDS);
+    }
+
     protected void setSeed(byte[] seed_data) {
         if (seedSet == true) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
@@ -70,9 +76,7 @@ public class SeedManager {
 
         clearSeed();
 
-        if ((seed_data[SEED_DATA_LENGTH_OFFSET] != MAX_SEED_LENGTH)
-            && (seed_data[SEED_DATA_LENGTH_OFFSET] != SEED_LENGTH_12_WORDS)
-            && (seed_data[SEED_DATA_LENGTH_OFFSET] != SEED_LENGTH_18_WORDS)) {
+        if (!isSeedLengthValid(seed_data[SEED_DATA_LENGTH_OFFSET])) {
             ISOException.throwIt(SW_WRONG_LENGTH);
         }
 
@@ -96,7 +100,7 @@ public class SeedManager {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         try {
-            if (seedLength > MAX_SEED_LENGTH) {
+            if (!isSeedLengthValid(seedLength)) {
                 throwFatalError();
             }
             // Retrieve the stored seed
@@ -228,7 +232,7 @@ public class SeedManager {
         if (seedSet == false) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
-        if (seedLength > MAX_SEED_LENGTH) {
+        if (!isSeedLengthValid(seedLength)) {
             throwFatalError();
         }
 

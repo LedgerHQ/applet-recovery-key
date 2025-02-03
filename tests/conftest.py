@@ -10,6 +10,7 @@ from ledger_pluto.applet_loader import AppletLoader
 from ledger_pluto.card_manager import CardManager
 from ledger_pluto.backend.jrcp_backend import JRCPBackend
 from ledger_pluto.ledger_pluto import configure_nxp_sim
+from binascii import unhexlify
 
 
 DEFAULT_SIM_ENC_KEY = "1111111111111111111111111111111111111111111111111111111111111111"
@@ -32,6 +33,21 @@ CAP_FILE = (
 INSTALL_PARAMS = "DEADBEEF"
 ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED = "Status Word: 0x6985"
 SEED_LEN = 32
+TEST_SEED = unhexlify(
+    "1989299da88b55c0f8b99649cb8d317384010000184170416ca77e8d75bd1841"
+)
+
+
+class StatusWords:
+    WRONG_P1_P2 = 0x6A86
+    WRONG_LENGTH = 0x6700
+    DATA_NOT_FOUND = 0x6A88
+    MISSING_SCP_LEDGER = 0x6887
+    INCORRECT_SCP_LEDGER = 0x6888
+    SECURITY_STATUS_NOT_SATISFIED = 0x6982
+    WRONG_PARAMETERS = 0x6A80
+
+
 TEST_CATEGORIES = [
     (
         "state_machine",
@@ -45,7 +61,20 @@ TEST_CATEGORIES = [
         ],
     ),
     ("secure_channels", [""]),
-    ("commands", [""]),
+    (
+        "commands",
+        [
+            "get_status",
+            "get_data",
+            "get_public_key",
+            "set_certificate",
+            "get_certificate",
+            "validate_certificate",
+            "set_pin",
+            "change_pin",
+            "verify_pin",
+        ],
+    ),
     ("generic", [""]),
     ("platform", [""]),
 ]
@@ -92,8 +121,76 @@ TEST_CATEGORY_DESCRIPTIONS = {
         "User Personalized - Pin Unlocked",
         "Tests that verify the behavior of the applet in User Personalized persistent state after authentication and after PIN verification",
     ),
+    (
+        "commands",
+        "get_status",
+    ): (
+        "GET STATUS Command",
+        "Tests that verify the behavior of the GET STATUS command",
+    ),
+    (
+        "commands",
+        "get_data",
+    ): (
+        "GET DATA Command",
+        "Tests that verify the behavior of the GET DATA command",
+    ),
+    (
+        "commands",
+        "get_public_key",
+    ): (
+        "GET PUBLIC KEY Command",
+        "Tests that verify the behavior of the GET PUBLIC KEY command",
+    ),
+    (
+        "commands",
+        "set_certificate",
+    ): (
+        "SET CERTIFICATE Command",
+        "Tests that verify the behavior of the SET CERTIFICATE command",
+    ),
+    (
+        "commands",
+        "get_certificate",
+    ): (
+        "GET CERTIFICATE Command",
+        "Tests that verify the behavior of the GET CERTIFICATE command",
+    ),
+    (
+        "commands",
+        "validate_certificate",
+    ): (
+        "VALIDATE CERTIFICATE Command",
+        "Tests that verify the behavior of the VALIDATE CERTIFICATE command",
+    ),
+    (
+        "commands",
+        "set_pin",
+    ): (
+        "SET PIN Command",
+        "Tests that verify the behavior of the SET PIN command",
+    ),
+    (
+        "commands",
+        "change_pin",
+    ): (
+        "CHANGE PIN Command",
+        "Tests that verify the behavior of the CHANGE PIN command",
+    ),
+    (
+        "commands",
+        "verify_pin",
+    ): (
+        "VERIFY PIN Command",
+        "Tests that verify the behavior of the VERIFY PIN command",
+    ),
 }
 TEST_DOC_URL = "https://ledgerhq.atlassian.net/wiki/spaces/FW/pages/5027168270/Charon+-+Tech+-+Test+Plan+-+Applet#Charon---{category}"
+
+
+def assert_sw(sw1, sw2, expected_sw):
+    sw = (sw1 << 8) + sw2
+    assert sw == expected_sw
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -255,6 +352,13 @@ def pytest_runtest_makereport(item, call):
         # Get the captured logs
         log_capture = item.funcargs.get("log_capture")
         logs = log_capture.get_logs() if log_capture else ""
+        # Remove lines which contain`JRCP command:` from logs
+        exclude_patterns = ["JRCP command:", "JRCP response"]
+        logs = "\n".join(
+            line
+            for line in logs.splitlines()
+            if not any(p in line for p in exclude_patterns)
+        )
 
         if call.excinfo:
             status = "❌ Failed"

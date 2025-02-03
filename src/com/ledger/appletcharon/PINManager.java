@@ -1,6 +1,7 @@
 package com.ledger.appletcharon;
 
 import static com.ledger.appletcharon.Constants.SW_FATAL_ERROR_DURING_INIT;
+import static com.ledger.appletcharon.Constants.SW_INCORRECT_PARAMETERS;
 
 import org.globalplatform.upgrade.Element;
 import org.globalplatform.upgrade.UpgradeManager;
@@ -65,7 +66,7 @@ public class PINManager {
         byte pinLength = buffer[PIN_DATA_LENGTH_OFFSET];
         // Check that the PIN length is valid (4-8 bytes)
         if (pinLength < PIN_MIN_SIZE || pinLength > PIN_MAX_SIZE) {
-            ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+            ISOException.throwIt(SW_INCORRECT_PARAMETERS);
         }
         pin.update(buffer, (short) PIN_DATA_OFFSET, pinLength);
         if (!pin.check(buffer, (short) PIN_DATA_OFFSET, pinLength)) {
@@ -77,6 +78,11 @@ public class PINManager {
     public boolean verifyPIN(byte[] buffer) {
         if (getPINStatus() != PIN_STATUS_ACTIVATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        byte pinLength = buffer[PIN_DATA_LENGTH_OFFSET];
+        // Check that the PIN length is valid (4-8 bytes)
+        if (pinLength < PIN_MIN_SIZE || pinLength > PIN_MAX_SIZE) {
+            ISOException.throwIt(SW_INCORRECT_PARAMETERS);
         }
         return pin.check(buffer, (short) PIN_DATA_OFFSET, buffer[PIN_DATA_LENGTH_OFFSET]);
     }

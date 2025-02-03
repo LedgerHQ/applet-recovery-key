@@ -23,17 +23,19 @@ from .conftest import (
     MAC_KEY,
     AID,
     SEED_LEN,
+    TEST_SEED,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def configure_client_and_check_state(client):
+def configure_client_and_check_state(
+    client, pin_digits=bytes([0x01, 0x02, 0x03, 0x04])
+):
     client.get_card_static_certificate_and_verify()
     client.get_card_ephemeral_certificate_and_verify()
     client.validate_hw_static_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
     client.validate_hw_ephemeral_certificate()
-    pin_digits = bytes([0x01, 0x02, 0x03, 0x04])
     client.verify_pin(pin_digits)
     infos = client.get_status()
     assert infos.fsm_state == "User_Personalized"
@@ -60,8 +62,7 @@ def setup_applet():
     client.validate_hw_ephemeral_certificate()
     pin_digits = bytes([0x01, 0x02, 0x03, 0x04])
     client.set_pin(pin_digits)
-    seed = os.urandom(SEED_LEN)
-    client.set_seed(seed)
+    client.set_seed(TEST_SEED)
     backend.disconnect()
 
 
@@ -76,10 +77,11 @@ def test_fsm_perso_pin_unlock_get_status(client):
 @pytest.mark.description("'GET DATA' is supported and should return 0x9000")
 @pytest.mark.test_spec("CHA_STATE_UP_MGMT_OK_02")
 @pytest.mark.state_machine("perso_pin_unlock")
-@pytest.mark.skip("TODO: implement GET DATA command in applet first")
 def test_fsm_perso_pin_unlock_get_data(client):
     logger.info("CHA_STATE_UP_MGMT_OK_02")
     configure_client_and_check_state(client)
+    data_tag = "9F17"
+    client.get_data(int(data_tag, 16))
 
 
 @pytest.mark.description("'RESTORE SEED' is supported and should return 0x9000")
@@ -93,28 +95,30 @@ def test_fsm_perso_pin_unlock_restore_seed(client):
 @pytest.mark.description("'VERIFY SEED' is supported and should return 0x9000")
 @pytest.mark.test_spec("CHA_STATE_UP_MGMT_OK_05")
 @pytest.mark.state_machine("perso_pin_unlock")
-@pytest.mark.skip("TODO: implement VERIFY SEED command in applet first")
 def test_fsm_perso_pin_unlock_verify_seed(client):
     configure_client_and_check_state(client)
-    # client.verify_seed()
+    client.verify_seed(TEST_SEED)
 
 
 @pytest.mark.description("'SET DATA' is supported and should return 0x9000")
 @pytest.mark.test_spec("CHA_STATE_UP_MGMT_OK_06")
 @pytest.mark.state_machine("perso_pin_unlock")
-@pytest.mark.skip("TODO: implement SET DATA command in applet first")
 def test_fsm_perso_pin_unlock_set_data(client):
     configure_client_and_check_state(client)
-    # client.set_data()
+    data_tag = "0066"
+    client.set_data(int(data_tag, 16), "dummy".encode())
 
 
 @pytest.mark.description("'FACTORY RESET' is supported and should return 0x9000")
 @pytest.mark.test_spec("CHA_STATE_UP_MGMT_OK_07")
 @pytest.mark.state_machine("perso_pin_unlock")
-@pytest.mark.skip("TODO: implement FACTORY RESET command in applet first")
+@pytest.mark.order("last")
 def test_fsm_perso_pin_unlock_factory_reset(client):
-    configure_client_and_check_state(client)
-    # client.factory_reset()
+    # This is the last test, it comes after the pin change so we have to use
+    # the new pin.
+    pin_digits = bytes([0x04, 0x03, 0x02, 0x01])
+    configure_client_and_check_state(client, pin_digits)
+    client.factory_reset()
 
 
 @pytest.mark.description("Unauthorized commands should be rejected with 0x6985")

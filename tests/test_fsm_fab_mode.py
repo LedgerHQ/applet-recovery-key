@@ -9,7 +9,7 @@ from .conftest import (
     TEST_ISSUER_PRIV_KEY,
     ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED,
     SEED_LEN,
-    AID
+    AID,
 )
 
 logger = logging.getLogger(__name__)
@@ -127,17 +127,18 @@ def test_fsm_fab_unauthorized_cmds(client):
         client.restore_seed()
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
-    # TODO: implement this command in the applet
-    # with pytest.raises(AssertionError) as e:
-    #     client.verify_seed(dummy_seed)
+    with pytest.raises(AssertionError) as e:
+        client.verify_seed(dummy_seed)
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
-    # TODO: implement this command in the applet
-    # with pytest.raises(AssertionError) as e:
-    # client.set_data()
+    with pytest.raises(AssertionError) as e:
+        data_tag = "0066"
+        client.set_data(int(data_tag, 16), "dummy".encode())
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
-    # TODO: implement this command in the client
-    # with pytest.raises(AssertionError) as e:
-    # client.factory_reset()
+    with pytest.raises(AssertionError) as e:
+        client.factory_reset()
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
 
 @pytest.mark.description("'SET CERTIFICATE' is supported and should return 0x9000")

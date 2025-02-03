@@ -22,7 +22,9 @@ public class SeedManager {
 
     private static final short SEED_DATA_LENGTH_OFFSET = 0;
     private static final short SEED_DATA_OFFSET = 1;
-    private static final short SEED_LENGTH = 32; // 256 bits = 32 bytes
+    private static final short SEED_LENGTH_12_WORDS = 16;
+    private static final short SEED_LENGTH_18_WORDS = 24;
+    protected static final short MAX_SEED_LENGTH = 32; // 256 bits = 32 bytes for 24 words
     private static final byte[] BITCOIN_SEED = { 'B', 'i', 't', 'c', 'o', 'i', 'n', ' ', 's', 'e', 'e', 'd' };
     private static final int DERIVATION_PATH_INDEX_1 = 0x80000000;
     private static final int DERIVATION_PATH_INDEX_2 = 0x82000000;
@@ -34,6 +36,7 @@ public class SeedManager {
     private HMACKey hmacKey;
     private MessageDigest msgDigestSHA256;
     private byte[] seedSHA256;
+    private byte seedLength;
     private Signature hmacSha512;
     private CryptoUtil crypto;
     private RandomData randomData;
@@ -46,6 +49,7 @@ public class SeedManager {
         crypto = null;
         seedKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_256, false);
         seedSet = false;
+        seedLength = 0;
         msgDigestSHA256 = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, false);
         seedSHA256 = new byte[SHA256_LENGTH];
         hmacKey = (HMACKey) KeyBuilder.buildKey(KeyBuilder.TYPE_HMAC, KeyBuilder.LENGTH_HMAC_SHA_512_BLOCK_128, false);
@@ -59,6 +63,12 @@ public class SeedManager {
         crypto = cryptoUtil;
     }
 
+    private boolean isSeedLengthValid(short length) {
+        return (length == MAX_SEED_LENGTH)
+                || (length == SEED_LENGTH_12_WORDS)
+                || (length == SEED_LENGTH_18_WORDS);
+    }
+
     protected void setSeed(byte[] seed_data) {
         if (seedSet == true) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
@@ -66,7 +76,7 @@ public class SeedManager {
 
         clearSeed();
 
-        if (seed_data[SEED_DATA_LENGTH_OFFSET] != SEED_LENGTH) {
+        if (!isSeedLengthValid(seed_data[SEED_DATA_LENGTH_OFFSET])) {
             ISOException.throwIt(SW_WRONG_LENGTH);
         }
 
@@ -74,8 +84,9 @@ public class SeedManager {
             JCSystem.beginTransaction();
             // Store the seed as key data
             seedKey.setKey(seed_data, (short) SEED_DATA_OFFSET);
+            seedLength = seed_data[SEED_DATA_LENGTH_OFFSET];
             msgDigestSHA256.reset();
-            msgDigestSHA256.doFinal(seed_data, SEED_DATA_OFFSET, SEED_LENGTH, seedSHA256, (short) 0);
+            msgDigestSHA256.doFinal(seed_data, (short) (SEED_DATA_OFFSET + (MAX_SEED_LENGTH - seedLength)), seedLength, seedSHA256, (short) 0);
             seedSet = true;
             JCSystem.commitTransaction();
         } catch (CryptoException e) {
@@ -89,11 +100,14 @@ public class SeedManager {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         try {
+            if (!isSeedLengthValid(seedLength)) {
+                throwFatalError();
+            }
             // Retrieve the stored seed
             seedKey.getKey(tempBuffer, (short) 0);
             msgDigestSHA256.reset();
-            msgDigestSHA256.doFinal(tempBuffer, (short) 0, SEED_LENGTH, derivationBuffer, (short) 0);
-            if (Util.arrayCompare(seedSHA256, (short) 0, derivationBuffer, (short) 0, SEED_LENGTH) != 0) {
+            msgDigestSHA256.doFinal(tempBuffer, (short) (MAX_SEED_LENGTH - seedLength), seedLength, derivationBuffer, (short) 0);
+            if (Util.arrayCompare(seedSHA256, (short) 0, derivationBuffer, (short) 0, MAX_SEED_LENGTH) != 0) {
                 throwFatalError();
             }
         } catch (Exception e) {
@@ -105,7 +119,8 @@ public class SeedManager {
         checkSeed();
         try {
             // Retrieve the stored seed
-            return seedKey.getKey(buffer, offset);
+            seedKey.getKey(buffer, offset);
+            return seedLength;
         } catch (CryptoException e) {
             throwFatalError();
         }
@@ -115,7 +130,7 @@ public class SeedManager {
     protected void clearSeed() {
         try {
             JCSystem.beginTransaction();
-            randomData.nextBytes(tempBuffer, (short) 0, SEED_LENGTH);
+            randomData.nextBytes(tempBuffer, (short) 0, MAX_SEED_LENGTH);
             seedKey.clearKey();
             seedKey.setKey(tempBuffer, (short) 0);
             seedSet = false;
@@ -150,6 +165,7 @@ public class SeedManager {
         // ======================================
         seedKey.clearKey();
         seedSet = false;
+        seedLength = 0;
     }
 
     /**
@@ -216,10 +232,13 @@ public class SeedManager {
         if (seedSet == false) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
+        if (!isSeedLengthValid(seedLength)) {
+            throwFatalError();
+        }
 
         // Step 1: Generate master key from seed
         seedKey.getKey(tempBuffer, (short) 0);
-        computeHmacSha512(BITCOIN_SEED, (short) 0, (short) BITCOIN_SEED.length, tempBuffer, (short) 0, SEED_LENGTH, derivationBuffer,
+        computeHmacSha512(BITCOIN_SEED, (short) 0, (short) BITCOIN_SEED.length, tempBuffer, (short) (MAX_SEED_LENGTH - seedLength), seedLength, derivationBuffer,
                 (short) 0);
 
         // Now derivationBuffer contains:
@@ -250,8 +269,8 @@ public class SeedManager {
     }
 
     static Element save(SeedManager seedManager) {
-        return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 1, (short) 2).write(seedManager.seedSet)
-                .write(seedManager.seedSHA256).write(seedManager.seedKey);
+        return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 2, (short) 2).write(seedManager.seedSet)
+                .write(seedManager.seedSHA256).write(seedManager.seedKey).write(seedManager.seedLength);
     }
 
     static SeedManager restore(Element element) {
@@ -262,6 +281,7 @@ public class SeedManager {
         seedManager.seedSet = element.readBoolean();
         seedManager.seedSHA256 = (byte[]) element.readObject();
         seedManager.seedKey = (AESKey) element.readObject();
+        seedManager.seedLength = (byte) element.readByte();
         return seedManager;
     }
 }

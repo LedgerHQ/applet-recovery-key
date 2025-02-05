@@ -38,7 +38,6 @@ update_vars() {
     JCAPI_ANNOTATIONS_PATH=$JCDK_PATH"/lib/api_classic_annotations-3.0.5.jar"
     AID="A000000002"
     VERSION="1.0"
-    GP_API_URL="https://globalplatform.org/wp-content/themes/globalplatform/ajax/file-download.php?f=https://globalplatform.org/wp-content/uploads/2019/07/GlobalPlatform_Card_API-org.globalplatform-v1.7.1.zip"
     JAVA_HOME="/usr/java/jdk-17-oracle-x64"
 }
 
@@ -48,7 +47,11 @@ update_vars
 DOCKER_IMAGE="containers.git.orange.ledgerlabs.net/embedded-software/applet-builder:latest"
 # DOCKER_IMAGE=alexisgrojean/applet-builder:latest
 CONTAINER_NAME="applet-builder"
-
+# Dependencies URLs for automated download
+JDK_17_URL="https://download.oracle.com/java/17/archive/jdk-17.0.12_linux-x64_bin.deb"
+JCDK_URL="https://download.oracle.com/otn-pub/java/java_card_kit/3.2/java_card_devkit_tools-bin-v24.0-b_57-20-FEB-2024.zip"
+OPENSSL_URL="https://github.com/openssl/openssl.git"
+GP_API_URL="https://globalplatform.org/wp-content/themes/globalplatform/ajax/file-download.php?f=https://globalplatform.org/wp-content/uploads/2019/07/GlobalPlatform_Card_API-org.globalplatform-v1.7.1.zip"
 # Function to clean build artifacts
 clean() {
     yellow "Cleaning build artifacts..."
@@ -93,30 +96,72 @@ check_dependencies() {
     
     # Check for JDK 17
     if [ ! -d $JAVA_HOME ]; then
-        red "Error: JDK 17 not found in $JAVA_HOME"
-        red "Please ensure JDK 17 is properly installed in $JAVA_HOME"
-        exit 1
+        message="JDK 17 not found in $JAVA_HOME"
+        if [ $INSTALL_DEPS = true ]; then
+            yellow $message
+            yellow "Downloading and installing JDK 17 to $JAVA_HOME..."
+            if [ ! -f /tmp/jdk-17_linux-x64_bin.deb ]; then
+                sudo curl -o /tmp/jdk-17_linux-x64_bin.deb $JDK_17_URL
+            fi
+            # Check if script is running as root
+            if [ "$EUID" -ne 0 ]; then
+                red "Error: Script must be run as root to install missing JDK 17"
+                exit 1
+            fi
+
+            apt-get install -y /tmp/jdk-17_linux-x64_bin.deb
+            rm /tmp/jdk-17_linux-x64_bin.deb
+            green "JDK 17 installed successfully"
+        else
+            red $message
+            red "Please ensure JDK 17 is properly installed in $JAVA_HOME"
+            exit 1
+        fi
     fi
 
     # Check for JavaCard DevKit
     if [ ! -d $JCDK_PATH ]; then
-        red "Error: JavaCard DevKit not found in $JCDK_PATH"
-        red "Please ensure JavaCard DevKit is properly installed in $JCDK_PATH"
-        exit 1
+        message="JavaCard DevKit not found in $JCDK_PATH"
+        if [ $INSTALL_DEPS = true ]; then
+            yellow $message
+            yellow "Downloading and installing JavaCard DevKit to $JCDK_PATH..."
+            curl -L -b oraclelicense=accept-securebackup-cookie -o /tmp/java_card_devkit.zip $JCDK_URL
+            unzip /tmp/java_card_devkit.zip -d $JCDK_PATH
+            rm /tmp/java_card_devkit.zip
+            green "JavaCard DevKit installed successfully"
+        else
+            red $message
+            red "Please ensure JavaCard DevKit is properly installed in $JCDK_PATH"
+            exit 1
+        fi
     fi
 
     # Check for openssl
     if [ ! -d $OPENSSL_PATH ]; then
-        red "Error: OpenSSL not found in $OPENSSL_PATH"
-        red "Please ensure OpenSSL is properly installed in $OPENSSL_PATH"
-        exit 1
-    fi
-
-    # Check for NXP JCOP simulator
-    if [ ! -d $JCSIM_PATH ]; then
-        red "Error: NXP JCOP Simulator not found in $JCSIM_PATH"
-        red "Please ensure NXP JCOP Simulator is properly installed in $JCSIM_PATH"
-        exit 1
+        message="OpenSSL not found in $OPENSSL_PATH"
+        if [ $INSTALL_DEPS = true ]; then
+            yellow $message
+            yellow "Installing dependencies for OpenSSL..." 
+            apt install -y \
+                build-essential \ 
+                checkinstall \
+                zlib1g-dev \
+                gcc-multilib \
+                g++-multilib 
+            yellow "Downloading and installing OpenSSL to $OPENSSL_PATH..."
+            git clone $OPENSSL_URL $OPENSSL_PATH \
+            && cd $OPENSSL_PATH \
+            && git checkout openssl-3.0.12 \
+            && perl ./Configure linux-x86 no-asm no-threads enable-weak-ssl-ciphers --prefix=/usr/local/ssl --openssldir=/usr/local/ssl \
+            && make \
+            && make install
+            cd -
+            green "OpenSSL installed successfully"
+        else
+            red $message
+            red "Please ensure OpenSSL is properly installed in $OPENSSL_PATH"
+            exit 1
+        fi
     fi
 
     # Check for specific required files
@@ -128,20 +173,27 @@ check_dependencies() {
 
     # Check if GP API is already present
     if [ ! -d $GP_API_PATH ]; then
-        yellow "Downloading GP API..."
-        if ! curl -L -o /tmp/gp-api.zip $GP_API_URL; then
-            red "Error: Failed to download GP API"
-            exit 1
-        fi
+        message="GP API not found in $GP_API_PATH"
+        if [ -d $INSTALL_DEPS ]; then
+            yellow $message
+            yellow "Downloading GP API and extracting to $GP_API_PATH..."
+            if ! curl -L -o /tmp/gp-api.zip $GP_API_URL; then
+                red "Error: Failed to download GP API"
+                exit 1
+            fi
         
-        if ! unzip /tmp/gp-api.zip -d $DEPS_PATH; then
-            red "Error: Failed to extract GP API"
+            if ! unzip /tmp/gp-api.zip -d $DEPS_PATH; then
+                red "Error: Failed to extract GP API"
+                rm /tmp/gp-api.zip
+                exit 1
+            fi
             rm /tmp/gp-api.zip
+            green "GP API installed successfully"
+        else
+            red $message
+            red "Please ensure GP API is properly installed in $GP_API_PATH"
             exit 1
         fi
-        rm /tmp/gp-api.zip
-    else
-        yellow "GP API already present, skipping download..."
     fi
 
     green "All dependencies checked successfully"
@@ -284,7 +336,12 @@ run_tests()
     export LD_LIBRARY_PATH=$OPENSSL_PATH
     export OPENSSL_MODULES=/usr/local/ssl/lib
     
-    check_dependencies
+    # Check for NXP JCOP simulator
+    if [ ! -d $JCSIM_PATH ]; then
+        red "Error: NXP JCOP Simulator not found in $JCSIM_PATH"
+        red "Please ensure NXP JCOP Simulator is properly installed in $JCSIM_PATH"
+        exit 1
+    fi
 
     # Install PDM
     yellow "Installing PDM..."
@@ -314,6 +371,7 @@ run_tests()
 # Parse command line arguments
 DOCKER=false
 TESTS=false
+INSTALL_DEPS=false
 
 # Parse options
 while [[ $# -gt 0 ]]; do
@@ -325,25 +383,22 @@ while [[ $# -gt 0 ]]; do
             DOCKER=true
             shift
             ;;
+        -i|--install-deps)
+            INSTALL_DEPS=true
+            shift
+            ;;
         -t|--tests)
             TESTS=true
-            if [ "$DOCKER" = true ]; then
-                if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
-                    GH_USER=$2
-                    if [ -n "$3" ] && [ ${3:0:1} != "-" ]; then
-                        GH_TOKEN=$3
-                        shift 3
-                    else
-                        red "Error: -t|--tests requires a valid GitHub password argument."
-                        exit 1
-                    fi
+            if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+                GH_USER=$2
+                if [ -n "$3" ] && [ ${3:0:1} != "-" ]; then
+                    GH_TOKEN=$3
+                    shift 3
                 else
-                    red "Error: -t|--tests requires a valid GitHub username argument."
-                    exit 1
+                    shift
                 fi
             else
-                # In non-dockerized mode, we don't need to parse the username and token
-                shift 1
+                shift
             fi
             ;;
         -a|--aid)
@@ -386,6 +441,18 @@ done
 
 if [ ! -n "$USER_AID" ]; then
     USER_AID=$AID
+fi
+
+# Validate github credentials if tests are requested 
+# and we are in docker mode.
+if [ "$TESTS" = true ]; then
+    if [ "$DOCKER" = true ]; then
+        # Validate GitHub credentials only if in Docker mode
+        if [ -z "$GH_USER" ] || [ -z "$GH_TOKEN" ]; then
+            red "Error: When using -t|--tests with Docker, both GitHub username and token are required."
+            exit 1
+        fi
+    fi
 fi
 
 # Execute requested operations

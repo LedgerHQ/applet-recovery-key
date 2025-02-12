@@ -99,4 +99,8 @@ public final class Constants {
     protected static final byte KEY_TYPE_PRIVATE_ECC = (byte) 0xB1;
     protected static final byte KEY_VERSION_01 = (byte) 0x01;
 
+    // Certificate tags
+    protected static final byte CERTIFICATE_PUBLIC_KEY_TAG = (byte) 0x33;
+    protected static final byte CERTIFICATE_SIGNATURE_TAG = (byte) 0x15;
+    protected static final byte CERTIFICATE_TRUSTED_NAME_TAG = (byte) 0x20;
 }

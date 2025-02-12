@@ -89,7 +89,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     protected CryptoUtil crypto;
 
     // Certificate management
-    protected Certificate cardCertificate;
+    protected CertificatePKI cardCertificatePKI;
     protected EphemeralCertificate ephemeralCertificate;
 
     // State machines (life cycle and transient)
@@ -109,7 +109,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         if (isPinVerifiedForUpgrade[0]) {
             return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 0, (short) 6).write(serialNumber)
                     .write(PINManager.save(this.pinManager)).write(SeedManager.save(this.seedManager))
-                    .write(Certificate.save(this.cardCertificate)).write(certificatePrivateKey).write(certificatePublicKey);
+                    .write(certificatePrivateKey).write(certificatePublicKey).write(CertificatePKI.save(this.cardCertificatePKI));
         } else {
             ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
             return null;
@@ -137,22 +137,20 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             if (seedManager != null) {
                 this.seedManager = seedManager;
             }
-            Certificate cardCertificate = Certificate.restore((Element) root.readObject());
-            if (cardCertificate != null) {
-                this.cardCertificate = cardCertificate;
-            }
             certificatePrivateKey = (ECPrivateKey) root.readObject();
             certificatePublicKey = (ECPublicKey) root.readObject();
+            CertificatePKI cardCertificatePKI = CertificatePKI.restore((Element) root.readObject());
+            if (cardCertificatePKI != null) {
+                this.cardCertificatePKI = cardCertificatePKI;
+            }
         }
     }
 
     @Override
     public void onConsolidate() {
         seedManager.setCryptoUtil(crypto);
-        if (this.cardCertificate.serialNumber == null) {
-            this.cardCertificate.setSerialNumber(serialNumber, (short) 0, (short) SN_LENGTH);
-        }
-        if (cardCertificate.isCertificateSet()) {
+        
+        if (cardCertificatePKI.isCertificateSet()) {
             appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
         }
         if (seedManager.isSeedSet() && pinManager.getPINStatus() == PINManager.PIN_STATUS_ACTIVATED) {
@@ -239,7 +237,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         crypto.initCurve(CryptoUtil.SECP256K1);
         seedManager = new SeedManager();
         seedManager.setCryptoUtil(crypto);
-        cardCertificate = new Certificate(CARD_CERT_ROLE);
+        cardCertificatePKI = new CertificatePKI();
         ephemeralCertificate = new EphemeralCertificate(crypto, CARD_CERT_ROLE);
         capsule = new CapsuleCBC();
         // Initialize Issuer key
@@ -261,7 +259,6 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
                     false);
             // Get the serial number from the install data
             getSerialNumberFromInstallData(bArray, bOffset);
-            cardCertificate.setSerialNumber(serialNumber, (short) 0, (short) SN_LENGTH);
             // Initialize the fatal error handler
             enableFatalErrorHandling();
         }

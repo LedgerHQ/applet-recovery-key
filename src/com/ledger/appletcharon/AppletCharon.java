@@ -10,6 +10,7 @@ import static com.ledger.appletcharon.Constants.CARD_CERT_ROLE;
 import static com.ledger.appletcharon.Constants.DGI_TAG_KEY_CRT;
 import static com.ledger.appletcharon.Constants.DGI_TAG_PRIVATE_KEY_VALUE;
 import static com.ledger.appletcharon.Constants.DGI_TAG_PUBLIC_KEY_VALUE;
+import static com.ledger.appletcharon.Constants.GET_STATUS_SERIAL_NUMBER_TAG;
 import static com.ledger.appletcharon.Constants.GP_CLA_EXTERNAL_AUTHENTICATE;
 import static com.ledger.appletcharon.Constants.GP_CLA_INITIALIZE_UPDATE;
 import static com.ledger.appletcharon.Constants.GP_INS_EXTERNAL_AUTHENTICATE;
@@ -203,32 +204,6 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     }
 
     /**
-     * Get the serial number from the install data.
-     * 
-     * @param bArray  the install data
-     * @param bOffset the offset in the install data
-     */
-    private void getSerialNumberFromInstallData(byte[] bArray, short bOffset) {
-        short offset = bOffset;
-
-        // Skip AID length
-        offset += (short) (bArray[offset] + 1);
-
-        // Skip Info length
-        offset += (short) (bArray[offset] + 1);
-
-        byte snLen = bArray[offset];
-
-        // If there is applet data, read the serial number
-        if (snLen == SN_LENGTH) {
-            serialNumber = new byte[SN_LENGTH];
-            Util.arrayCopyNonAtomic(bArray, (short) (offset + 1), serialNumber, (short) 0, SN_LENGTH);
-        } else {
-            ISOException.throwIt(ISO7816.SW_DATA_INVALID);
-        }
-    }
-
-    /**
      * Only this class's install method should create the applet object.
      */
     protected AppletCharon(byte[] bArray, short bOffset, byte bLength) {
@@ -255,14 +230,13 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         isPinVerifiedForUpgrade = JCSystem.makeTransientBooleanArray((short) 1, JCSystem.CLEAR_ON_RESET);
         commandProcessor = new CommandProcessor(this, ramBuffer);
         fatalError = new FatalError(this);
+        serialNumber = new byte[SN_LENGTH];
 
         if (UpgradeManager.isUpgrading() == false) {
             certificatePrivateKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, crypto.getCurve().getCurveLength(),
                     false);
             certificatePublicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, crypto.getCurve().getCurveLength(),
                     false);
-            // Get the serial number from the install data
-            getSerialNumberFromInstallData(bArray, bOffset);
             // Initialize the fatal error handler
             enableFatalErrorHandling();
         }
@@ -490,6 +464,20 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
                 dataLength = (short) (dataLength - 2 - tlvLength);
                 dataOffset = (short) (dataOffset + 2 + tlvLength);
             }
+            break;
+
+        case (short) GET_STATUS_SERIAL_NUMBER_TAG:
+            tlvLength = baBuffer[dataOffset];
+            if ((securityLevel & (SecureChannel.C_MAC | SecureChannel.C_DECRYPTION)) != (SecureChannel.C_MAC
+                    | SecureChannel.C_DECRYPTION)) {
+                ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+                return;
+            }
+            if (tlvLength != SN_LENGTH) {
+                ISOException.throwIt(SW_INCORRECT_PARAMETERS);
+                return;
+            }
+            Util.arrayCopy(baBuffer, (short) (dataOffset + 1), serialNumber, (short) 0, SN_LENGTH);
             break;
 
         default:

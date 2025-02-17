@@ -174,19 +174,17 @@ public class CommandProcessor {
             ISOException.throwIt(SW_WRONG_LENGTH);
         }
 
-        // offset for issuerPublicKeyLength || issuerPublicKey
+        // offset for certificate
+        // LC = certificateLength
         short offset = ISO7816.OFFSET_CDATA;
-        app.cardCertificatePKI.setIssuerPublicKey(buffer, (short) (offset + 1), buffer[offset]);
-        // offset for certificateLength || certificate
-        offset += 1 + buffer[offset];
-        offset = app.cardCertificatePKI.parseTLVGetOffset(CERTIFICATE_TRUSTED_NAME_TAG, buffer, (short) (offset + 1), cdatalength);
+        offset = app.cardCertificatePKI.parseTLVGetOffset(CERTIFICATE_TRUSTED_NAME_TAG, buffer, offset, cdatalength);
         // Check serial number
         if (Util.arrayCompare(buffer, (short) (offset + 1), app.serialNumber, (short) 0, buffer[offset]) != 0) {
             ISOException.throwIt(SW_INCORRECT_PARAMETERS);
         }
 
         // Verify signature
-        offset = (short) (ISO7816.OFFSET_CDATA + 1 + buffer[ISO7816.OFFSET_CDATA]);
+        offset = ISO7816.OFFSET_CDATA;
         if (app.cardCertificatePKI.verifySignature(buffer, offset, cdatalength) != true) {
             ISOException.throwIt(SW_SECURITY_STATUS);
         }

@@ -5,13 +5,14 @@ import org.globalplatform.upgrade.UpgradeManager;
 import javacard.security.ECPublicKey;
 import javacard.security.KeyBuilder;
 import javacard.security.Signature;
-import javacard.framework.Util;
 import javacard.framework.ISOException;
+import javacard.framework.Util;
+import static com.ledger.appletcharon.Constants.APDU_HEADER_SIZE;
 import static com.ledger.appletcharon.Constants.CERTIFICATE_PUBLIC_KEY_TAG;
 import static com.ledger.appletcharon.Constants.CERTIFICATE_SIGNATURE_TAG;
 import static com.ledger.appletcharon.Constants.SW_REFERENCE_DATA_NOT_FOUND;
+import static com.ledger.appletcharon.Constants.SW_SECURITY_STATUS;
 import static com.ledger.appletcharon.Constants.SW_WRONG_LENGTH;
-import static com.ledger.appletcharon.Constants.SW_SECURITY_STATUS;;
 
 public class CertificatePKI {
     // Certificate length
@@ -22,6 +23,7 @@ public class CertificatePKI {
     private ECPublicKey issuerPublicKey;
     // Signature instance for certificate signature verification
     Signature signature;
+    Curve curve;
     private static final short MAX_CERT_LEN = 256;
 
     public CertificatePKI() {
@@ -29,6 +31,7 @@ public class CertificatePKI {
         this.rawCertificate = new byte[MAX_CERT_LEN];
         this.issuerPublicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, (short) KeyBuilder.LENGTH_EC_FP_256, false);
         this.signature = Signature.getInstance(Signature.ALG_ECDSA_SHA_256, false);
+        this.curve = new Secp256k1();
     }
 
     /**
@@ -137,8 +140,7 @@ public class CertificatePKI {
     protected void setIssuerPublicKey(byte[] publicKey, short offset, short publicKeyLength) {
         // This method should be called once during applet installation
         // issuerPublicKey is kept after the upgrade
-        Curve curve = new Secp256k1();
-        curve.setCurveParameters(this.issuerPublicKey);
+        this.curve.setCurveParameters(this.issuerPublicKey);
         this.issuerPublicKey.setW(publicKey, offset, (short) publicKeyLength);
     }
 
@@ -172,22 +174,21 @@ public class CertificatePKI {
      * False otherwise
      */
     protected boolean verifySignature(byte[] certificate, short offset, short length) {
-        // certificate = certificateLength || certificateValue
         // parse certificate to get the signature length and the signature value (tag = 0x15)
-        short signatureOffset = parseTLVGetOffset(CERTIFICATE_SIGNATURE_TAG, certificate, (short) (offset + 1), length);
+        short signatureOffset = parseTLVGetOffset(CERTIFICATE_SIGNATURE_TAG, certificate, offset, length);
         short signatureLength = (short) (certificate[signatureOffset] & 0xFF);
         signatureOffset++;
 
         this.signature.init(this.issuerPublicKey, Signature.MODE_VERIFY);
 
-        short certificateLength = (short) (certificate[offset] & 0xFF);
-        boolean isVerified = this.signature.verify(certificate, (short) (offset + 1), (short) (certificateLength - signatureLength - 2), certificate, signatureOffset, signatureLength);
+        short certificateLength = (short) (length - APDU_HEADER_SIZE);
+        boolean isVerified = this.signature.verify(certificate, offset, (short) (certificateLength - signatureLength - 2), certificate, signatureOffset, signatureLength);
 
         if (!isVerified) {
             ISOException.throwIt(SW_SECURITY_STATUS);
         }
 
-        setCertificate(certificate, (short) (offset + 1), certificateLength);
+        setCertificate(certificate, offset, certificateLength);
         return isVerified;
     }
 

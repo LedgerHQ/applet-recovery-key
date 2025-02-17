@@ -8,15 +8,19 @@ package com.ledger.appletcharon;
 import static com.ledger.appletcharon.Constants.APDU_HEADER_SIZE;
 import static com.ledger.appletcharon.Constants.CARD_CERT_ROLE;
 import static com.ledger.appletcharon.Constants.DGI_TAG_KEY_CRT;
-import static com.ledger.appletcharon.Constants.DGI_TAG_KEY_VALUE;
+import static com.ledger.appletcharon.Constants.DGI_TAG_PRIVATE_KEY_VALUE;
+import static com.ledger.appletcharon.Constants.DGI_TAG_PUBLIC_KEY_VALUE;
 import static com.ledger.appletcharon.Constants.GP_CLA_EXTERNAL_AUTHENTICATE;
 import static com.ledger.appletcharon.Constants.GP_CLA_INITIALIZE_UPDATE;
 import static com.ledger.appletcharon.Constants.GP_INS_EXTERNAL_AUTHENTICATE;
 import static com.ledger.appletcharon.Constants.GP_INS_INITIALIZE_UPDATE;
 import static com.ledger.appletcharon.Constants.HW_SN_LENGTH;
 import static com.ledger.appletcharon.Constants.KEY_TYPE_PRIVATE_ECC;
+import static com.ledger.appletcharon.Constants.KEY_TYPE_PUBLIC_ECC;
 import static com.ledger.appletcharon.Constants.KEY_USAGE_SIGNATURE;
+import static com.ledger.appletcharon.Constants.KEY_USAGE_VERIFICATION;
 import static com.ledger.appletcharon.Constants.KEY_VERSION_01;
+import static com.ledger.appletcharon.Constants.KEY_VERSION_11;
 import static com.ledger.appletcharon.Constants.LEDGER_COMMAND_CLA;
 import static com.ledger.appletcharon.Constants.MAX_CARD_NAME_LENGTH;
 import static com.ledger.appletcharon.Constants.MAX_HW_PUBLIC_KEY_LENGTH;
@@ -382,7 +386,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
 
         // DGI
         switch (dgi) {
-        case DGI_TAG_KEY_VALUE:
+        case DGI_TAG_PRIVATE_KEY_VALUE:
             tlvLength = baBuffer[dataOffset];
             if ((securityLevel & (SecureChannel.C_MAC | SecureChannel.C_DECRYPTION)) != (SecureChannel.C_MAC
                     | SecureChannel.C_DECRYPTION)) {
@@ -396,6 +400,22 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             issuerKey.setS(baBuffer, (short) (dataOffset + 1), CryptoUtil.SECP256K1_PRIVATE_KEY_LEN);
             // Erase key value from APDU buffer
             Util.arrayFillNonAtomic(baBuffer, (short) (dataOffset + 1), (short) CryptoUtil.SECP256K1_PRIVATE_KEY_LEN, (byte) 0xFF);
+            break;
+
+        case DGI_TAG_PUBLIC_KEY_VALUE:
+            tlvLength = baBuffer[dataOffset];
+            if ((securityLevel & (SecureChannel.C_MAC | SecureChannel.C_DECRYPTION)) != (SecureChannel.C_MAC
+                    | SecureChannel.C_DECRYPTION)) {
+                ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+                return;
+            }
+            if (tlvLength != CryptoUtil.SECP256K1_PUBLIC_KEY_LEN) {
+                ISOException.throwIt(SW_INCORRECT_PARAMETERS);
+                return;
+            }
+            cardCertificatePKI.setIssuerPublicKey(baBuffer, (short) (dataOffset + 1), CryptoUtil.SECP256K1_PUBLIC_KEY_LEN);
+            // Erase key value from APDU buffer
+            Util.arrayFillNonAtomic(baBuffer, (short) (dataOffset + 1), (short) CryptoUtil.SECP256K1_PUBLIC_KEY_LEN, (byte) 0xFF);
             break;
 
         case DGI_TAG_KEY_CRT:
@@ -423,21 +443,24 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
 
                 switch (tlvTag) {
                 case TAG_KEY_USAGE:
-                    if (baBuffer[(short) (dataOffset + 2)] != KEY_USAGE_SIGNATURE) {
+                    if ((baBuffer[(short) (dataOffset + 2)] != KEY_USAGE_SIGNATURE)
+                    && (baBuffer[(short) (dataOffset + 2)] != KEY_USAGE_VERIFICATION)) {
                         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
                         return;
                     }
                     break;
 
                 case TAG_KEY_TYPE:
-                    if (baBuffer[(short) (dataOffset + 2)] != KEY_TYPE_PRIVATE_ECC) {
+                    if ((baBuffer[(short) (dataOffset + 2)] != KEY_TYPE_PRIVATE_ECC)
+                    && (baBuffer[(short) (dataOffset + 2)] != KEY_TYPE_PUBLIC_ECC)) {
                         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
                         return;
                     }
                     break;
 
                 case TAG_KEY_LENGTH:
-                    if (baBuffer[(short) (dataOffset + 2)] != CryptoUtil.SECP256K1_PRIVATE_KEY_LEN) {
+                    if ((baBuffer[(short) (dataOffset + 2)] != CryptoUtil.SECP256K1_PRIVATE_KEY_LEN)
+                    && (baBuffer[(short) (dataOffset + 2)] != CryptoUtil.SECP256K1_PUBLIC_KEY_LEN)) {
                         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
                         return;
                     }
@@ -451,7 +474,8 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
                     break;
 
                 case TAG_KEY_VERSION:
-                    if (baBuffer[(short) (dataOffset + 2)] != KEY_VERSION_01) {
+                    if ((baBuffer[(short) (dataOffset + 2)] != KEY_VERSION_01)
+                        && (baBuffer[(short) (dataOffset + 2)] != KEY_VERSION_11)) {
                         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
                         return;
                     }

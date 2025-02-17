@@ -92,13 +92,16 @@ public final class Constants {
     // Data Grouping Identifier for key Control Reference Template (CRT)
     protected static final short DGI_TAG_KEY_CRT = (short) 0x00B9;
     // Data Grouping Identifier for key value
-    protected static final short DGI_TAG_KEY_VALUE = (short) 0x8137;
+    protected static final short DGI_TAG_PRIVATE_KEY_VALUE = (short) 0x8137;
+    protected static final short DGI_TAG_PUBLIC_KEY_VALUE = (short) 0x0036;
     // Key usage: digital signature
     protected static final byte KEY_USAGE_SIGNATURE = (byte) 0x02;
+    protected static final byte KEY_USAGE_VERIFICATION = (byte) 0x80;
     // Type: ECC private key
     protected static final byte KEY_TYPE_PRIVATE_ECC = (byte) 0xB1;
+    protected static final byte KEY_TYPE_PUBLIC_ECC = (byte) 0xB0;
     protected static final byte KEY_VERSION_01 = (byte) 0x01;
-
+    protected static final byte KEY_VERSION_11 = (byte) 0x0B;
     // Certificate tags
     protected static final byte CERTIFICATE_PUBLIC_KEY_TAG = (byte) 0x33;
     protected static final byte CERTIFICATE_SIGNATURE_TAG = (byte) 0x15;

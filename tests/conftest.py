@@ -69,6 +69,7 @@ TEST_CATEGORIES = [
             "get_data",
             "get_public_key",
             "set_certificate",
+            "mark_factory_tests_passed",
             "get_certificate",
             "validate_certificate",
             "set_pin",

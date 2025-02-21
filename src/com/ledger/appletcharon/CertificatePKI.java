@@ -10,9 +10,9 @@ import javacard.framework.Util;
 import static com.ledger.appletcharon.Constants.APDU_HEADER_SIZE;
 import static com.ledger.appletcharon.Constants.CERTIFICATE_PUBLIC_KEY_TAG;
 import static com.ledger.appletcharon.Constants.CERTIFICATE_SIGNATURE_TAG;
-import static com.ledger.appletcharon.Constants.SW_REFERENCE_DATA_NOT_FOUND;
 import static com.ledger.appletcharon.Constants.SW_SECURITY_STATUS;
 import static com.ledger.appletcharon.Constants.SW_WRONG_LENGTH;
+import static com.ledger.appletcharon.Utils.parseTLVGetOffset;
 
 public class CertificatePKI {
     // Certificate length
@@ -32,88 +32,6 @@ public class CertificatePKI {
         this.issuerPublicKey = (ECPublicKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PUBLIC, (short) KeyBuilder.LENGTH_EC_FP_256, false);
         this.signature = Signature.getInstance(Signature.ALG_ECDSA_SHA_256, false);
         this.curve = new Secp256k1();
-    }
-
-    /**
-     * Parses the TLV-encoded certificate given a tag and copies the
-     * data field corresponding to the tag.
-     * @param[in]  tag       Tag of the data to copy
-     * @param[in]  tlvData   TLV data buffer
-     * @param[in]  offset    Offset of the TLV data
-     * @param[in]  length    Length of the TLV data
-     * @param[out] outValue  Buffer to store the tag data
-     * @param[in]  outOffset Offset of the buffer
-     * @return
-     */
-    private short parseTLV(byte tag, byte[] tlvData, short offset, short length, byte[] outValue, short outOffset) {
-        short end = (short) (offset + length);
-        boolean isTagFound = false;
-        short len = 0;
-
-        while (!isTagFound && (offset < end)) {
-            // Read the tag
-            byte currentTag = (byte) (tlvData[offset] & 0xFF);
-            offset++;
-
-            // Read the length
-            len = (short) (tlvData[offset] & 0xFF);
-            offset++;
-
-            // Copy the value
-            if (currentTag == tag) {
-                Util.arrayCopy(tlvData, offset, outValue, outOffset, len);
-                isTagFound = true;
-            }
-            offset += len;
-        }
-
-        if (!isTagFound) {
-            ISOException.throwIt(SW_REFERENCE_DATA_NOT_FOUND);
-        }
-
-        // Return the length
-        return len;
-    }
-
-    /**
-     * Parses the TLV-encoded certificate given a tag and returns the
-     * offset of the data length.
-     * @param[in]  tag       Tag of the data
-     * @param[in]  tlvData   TLV data buffer
-     * @param[in]  offset    Offset of the TLV data
-     * @param[in]  length    Length of the TLV data
-     * @return Offset of the data length
-     */
-    protected short parseTLVGetOffset(byte tag, byte[] tlvData, short offset, short length) {
-        short end = (short) (offset + length);
-        boolean isTagFound = false;
-        short outOffset = 0;
-        short len = 0;
-
-        while (!isTagFound && (offset < end)) {
-            // Read the tag
-            byte currentTag = (byte) (tlvData[offset] & 0xFF);
-            offset++;
-
-            if (currentTag == tag) {
-                isTagFound = true;
-                // Offset corresponding to the length
-                outOffset = offset;
-            }
-
-            // Read the length
-            len = (short) (tlvData[offset] & 0xFF);
-            offset++;
-
-            offset += len;
-        }
-
-        if (!isTagFound) {
-            ISOException.throwIt(SW_REFERENCE_DATA_NOT_FOUND);
-        }
-
-        // Return the offset
-        return outOffset;
     }
 
     /**

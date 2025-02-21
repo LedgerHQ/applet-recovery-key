@@ -29,6 +29,7 @@ import static com.ledger.appletcharon.Constants.SW_SECURITY_STATUS;
 import static com.ledger.appletcharon.Constants.SW_WRONG_LENGTH;
 import static com.ledger.appletcharon.Constants.SW_WRONG_P1P2;
 import static com.ledger.appletcharon.Utils.buildTLVField;
+import static com.ledger.appletcharon.Utils.parseTLVGetOffset;
 import static com.ledger.appletcharon.Version.APPLET_MAJOR_VERSION;
 import static com.ledger.appletcharon.Version.APPLET_MINOR_VERSION;
 import static com.ledger.appletcharon.Version.APPLET_PATCH_VERSION;
@@ -177,7 +178,7 @@ public class CommandProcessor {
         // offset for certificate
         // LC = certificateLength
         short offset = ISO7816.OFFSET_CDATA;
-        offset = app.cardCertificatePKI.parseTLVGetOffset(CERTIFICATE_TRUSTED_NAME_TAG, buffer, offset, cdatalength);
+        offset = parseTLVGetOffset(CERTIFICATE_TRUSTED_NAME_TAG, buffer, offset, cdatalength);
         // Check serial number
         if (Util.arrayCompare(buffer, (short) (offset + 1), app.serialNumber, (short) 0, buffer[offset]) != 0) {
             ISOException.throwIt(SW_INCORRECT_PARAMETERS);

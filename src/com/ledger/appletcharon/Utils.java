@@ -3,6 +3,7 @@ package com.ledger.appletcharon;
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.Util;
+import static com.ledger.appletcharon.Constants.SW_REFERENCE_DATA_NOT_FOUND;
 
 public final class Utils {
     /**
@@ -42,5 +43,46 @@ public final class Utils {
         tlvFields[offset++] = (byte) length;
         Util.arrayCopyNonAtomic(value, (short) 0, tlvFields, offset, length);
         return (short) (offset + length);
+    }
+
+    /**
+     * Parses the TLV-encoded certificate given a tag and returns the
+     * offset of the data length.
+     * @param[in]  tag       Tag of the data
+     * @param[in]  tlvData   TLV data buffer
+     * @param[in]  offset    Offset of the TLV data
+     * @param[in]  length    Length of the TLV data
+     * @return Offset of the data length
+     */
+    public static short parseTLVGetOffset(byte tag, byte[] tlvData, short offset, short length) {
+        short end = (short) (offset + length);
+        boolean isTagFound = false;
+        short outOffset = 0;
+        short len = 0;
+
+        while (!isTagFound && (offset < end)) {
+            // Read the tag
+            byte currentTag = (byte) (tlvData[offset] & 0xFF);
+            offset++;
+
+            if (currentTag == tag) {
+                isTagFound = true;
+                // Offset corresponding to the length
+                outOffset = offset;
+            }
+
+            // Read the length
+            len = (short) (tlvData[offset] & 0xFF);
+            offset++;
+
+            offset += len;
+        }
+
+        if (!isTagFound) {
+            ISOException.throwIt(SW_REFERENCE_DATA_NOT_FOUND);
+        }
+
+        // Return the offset
+        return outOffset;
     }
 }

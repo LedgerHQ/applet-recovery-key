@@ -8,14 +8,16 @@ import javacard.framework.JCSystem;
 public class AppletStateMachine {
     // Constants for states
     public static final byte STATE_FABRICATION = 0;
-    public static final byte STATE_ATTESTED = 1;
-    public static final byte STATE_USER_PERSONALIZED = 2;
+    public static final byte STATE_PENDING_TESTS = 1;
+    public static final byte STATE_ATTESTED = 2;
+    public static final byte STATE_USER_PERSONALIZED = 3;
 
     // Constants for events
     public static final byte EVENT_SET_CERTIFICATE = 0;
-    public static final byte EVENT_SET_SEED = 1;
-    public static final byte EVENT_PIN_TRY_LIMIT_EXCEEDED = 2;
-    public static final byte EVENT_FACTORY_RESET = 3;
+    public static final byte EVENT_FACTORY_TESTS_PASSED = 1;
+    public static final byte EVENT_SET_SEED = 2;
+    public static final byte EVENT_PIN_TRY_LIMIT_EXCEEDED = 3;
+    public static final byte EVENT_FACTORY_RESET = 4;
 
     private byte currentState;
     private FatalError fatalError;
@@ -27,6 +29,7 @@ public class AppletStateMachine {
     private boolean isValidState(byte state) {
         switch (state) {
         case STATE_FABRICATION:
+        case STATE_PENDING_TESTS:
         case STATE_ATTESTED:
         case STATE_USER_PERSONALIZED:
             return true;
@@ -56,6 +59,11 @@ public class AppletStateMachine {
         switch (currentState) {
         case STATE_FABRICATION:
             if (event == EVENT_SET_CERTIFICATE) {
+                newState = STATE_PENDING_TESTS;
+            }
+            break;
+        case STATE_PENDING_TESTS:
+            if (event == EVENT_FACTORY_TESTS_PASSED) {
                 newState = STATE_ATTESTED;
             }
             break;

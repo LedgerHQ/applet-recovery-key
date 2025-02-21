@@ -47,12 +47,11 @@ def configure_applet(client):
 @pytest.mark.test_spec("CHA_APP_SC_OK_01")
 @pytest.mark.commands("set_certificate")
 def test_cmd_set_certificate(client):
-    print("test_cmd_set_certificate")
     configure_applet(client)
     client.set_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
     infos = client.get_status()
-    assert infos.fsm_state == "Attested"
-    assert infos.transient_fsm_state == "Initialized"
+    assert infos.fsm_state == "Pending_Tests"
+    assert infos.transient_fsm_state == "Idle"
 
 
 @pytest.mark.description(

@@ -56,6 +56,7 @@ def setup_applet():
     client.set_issuer_key(AID, bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
     client.get_public_key_and_verify()
     client.set_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
+    client.mark_factory_tests_passed()
     client.get_card_static_certificate_and_verify()
     client.get_card_ephemeral_certificate_and_verify()
     client.validate_hw_static_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
@@ -187,6 +188,10 @@ def test_fsm_perso_pin_unlock_unauthorized_cmds(client):
     dummy_seed = os.urandom(SEED_LEN)
     with pytest.raises(AssertionError) as e:
         client.set_seed(dummy_seed)
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
+
+    with pytest.raises(AssertionError) as e:
+        client.mark_factory_tests_passed()
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
 

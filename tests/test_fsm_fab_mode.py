@@ -36,14 +36,6 @@ def test_fsm_fab_get_status(client):
     check_applet_state(client)
 
 
-@pytest.mark.description("'GET DATA' is supported and should return 0x9000")
-@pytest.mark.skip("TODO: implement GET DATA command in applet first")
-@pytest.mark.test_spec("CHA_STATE_FAB_OK_02")
-@pytest.mark.state_machine("fabrication")
-def test_fsm_fab_get_data(client):
-    check_applet_state(client)
-
-
 @pytest.mark.description("'GET PUBLIC KEY' is supported and should return 0x9000")
 @pytest.mark.test_spec("CHA_STATE_FAB_OK_03")
 @pytest.mark.state_machine("fabrication")
@@ -138,6 +130,10 @@ def test_fsm_fab_unauthorized_cmds(client):
 
     with pytest.raises(AssertionError) as e:
         client.factory_reset()
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
+
+    with pytest.raises(AssertionError) as e:
+        client.mark_factory_tests_passed()
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
 

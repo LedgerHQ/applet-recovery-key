@@ -53,6 +53,7 @@ TEST_CATEGORIES = [
         "state_machine",
         [
             "fabrication",
+            "pending_tests",
             "attested1",
             "attested2",
             "perso_pin_lock",
@@ -85,6 +86,13 @@ TEST_CATEGORY_DESCRIPTIONS = {
     ): (
         "Fabrication",
         "Tests that verify the behavior of the applet in Fabrication persistent state",
+    ),
+    (
+        "state_machine",
+        "pending_tests",
+    ): (
+        "Pending Factory Tests",
+        "Tests that verify the behavior of the applet in Pending Tests persistent state",
     ),
     (
         "state_machine",
@@ -183,6 +191,13 @@ TEST_CATEGORY_DESCRIPTIONS = {
     ): (
         "VERIFY PIN Command",
         "Tests that verify the behavior of the VERIFY PIN command",
+    ),
+    (
+        "commands",
+        "mark_factory_tests_passed",
+    ): (
+        "MARK FACTORY TESTS PASSED Command",
+        "Tests that verify the behavior of the MARK FACTORY TESTS PASSED command",
     ),
 }
 TEST_DOC_URL = "https://ledgerhq.atlassian.net/wiki/spaces/FW/pages/5027168270/Charon+-+Tech+-+Test+Plan+-+Applet#Charon---{category}"

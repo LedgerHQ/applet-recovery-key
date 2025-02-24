@@ -1,6 +1,6 @@
 import logging
 import pytest
-from ledger_pluto.client import CLA, InsType, P1, P2
+from ledger_pluto.client import CLA, InsType, P1, P2, AppletLifeCycleState
 from ledger_pluto.command_sender import GPCommandSender
 from ledger_pluto.applet_loader import AppletLoader
 from ledger_pluto.card_manager import CardManager
@@ -43,13 +43,12 @@ def configure_applet(client):
     assert infos.transient_fsm_state == "Idle"
 
 
-@pytest.mark.description(
-    "'MARK_FACTORY_TESTS_PASSED' is supported and should return 0x9000"
-)
+@pytest.mark.description("'SET_STATUS' is supported and should return 0x9000")
 @pytest.mark.test_spec("CHA_APP_FT_OK_01")
-@pytest.mark.commands("mark_factory_tests_passed")
-def test_cmd_mark_factory_tests_passed(client):
+@pytest.mark.commands("set_status")
+def test_cmd_set_status(client):
     configure_applet(client)
+    # This client method calls SET STATUS with P2=ATTESTED
     client.mark_factory_tests_passed()
     infos = client.get_status()
     assert infos.fsm_state == "Attested"
@@ -60,31 +59,32 @@ def test_cmd_mark_factory_tests_passed(client):
     "When P1 differs from 0x00, the command should be rejected with 0x6A86"
 )
 @pytest.mark.test_spec("CHA_APP_FT_FAIL_01")
-@pytest.mark.commands("mark_factory_tests_passed")
-def test_cmd_mark_factory_tests_passed_wrong_p1(sender, client):
+@pytest.mark.commands("set_status")
+def test_cmd_set_status_wrong_p1(sender, client):
     configure_applet(client)
     wrong_p1 = 0x01
+    p2 = AppletLifeCycleState.ATTESTED
     _, sw1, sw2 = sender.build_and_send_apdu_no_throw(
         cla=CLA,
-        ins=InsType.MARK_FACTORY_TESTS_PASSED,
+        ins=InsType.SET_STATUS,
         p1=wrong_p1,
-        p2=P2.P2_DEFAULT,
+        p2=p2,
         data=b"",
     )
     assert_sw(sw1, sw2, StatusWords.WRONG_P1_P2)
 
 
 @pytest.mark.description(
-    "When P2 differs from 0x00, the command should be rejected with 0x6A86"
+    "When P2 differs from 0x02, the command should be rejected with 0x6A86"
 )
 @pytest.mark.test_spec("CHA_APP_FT_FAIL_02")
-@pytest.mark.commands("mark_factory_tests_passed")
-def test_cmd_mark_factory_tests_passed_wrong_p2(sender, client):
+@pytest.mark.commands("set_status")
+def test_cmd_set_status_wrong_p2(sender, client):
     configure_applet(client)
-    wrong_p2 = 0x01
+    wrong_p2 = 0xAB
     _, sw1, sw2 = sender.build_and_send_apdu_no_throw(
         cla=CLA,
-        ins=InsType.MARK_FACTORY_TESTS_PASSED,
+        ins=InsType.SET_STATUS,
         p1=P1.P1_DEFAULT,
         p2=wrong_p2,
         data=b"",
@@ -96,18 +96,19 @@ def test_cmd_mark_factory_tests_passed_wrong_p2(sender, client):
     "When Lc differs from 0x00, the command should be rejected with 0x6700"
 )
 @pytest.mark.test_spec("CHA_APP_FT_FAIL_03")
-@pytest.mark.commands("mark_factory_tests_passed")
-def test_cmd_mark_factory_tests_passed_wrong_lc(sender, client):
+@pytest.mark.commands("set_status")
+def test_cmd_set_status_wrong_lc(sender, client):
     configure_applet(client)
     wrong_lc = 0x01
+    p2 = AppletLifeCycleState.ATTESTED
     dummy_data = bytearray([0x00] * wrong_lc)
     apdu = (
         bytearray(
             [
                 CLA,
-                InsType.MARK_FACTORY_TESTS_PASSED,
+                InsType.SET_STATUS,
                 P1.P1_DEFAULT,
-                P2.P2_DEFAULT,
+                p2,
                 wrong_lc,
             ]
         )

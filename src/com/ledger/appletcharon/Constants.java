@@ -17,11 +17,11 @@ public final class Constants {
     protected static final short RAM_BUFFER_SIZE = 256;
 
     // Instruction codes
+    protected static final byte INS_SET_STATUS = (byte) 0xF0;
     protected static final byte INS_GET_STATUS = (byte) 0xF2;
     protected static final byte INS_GET_DATA = (byte) 0xCA;
     protected static final byte INS_GET_PUBLIC_KEY = (byte) 0x40;
     protected static final byte INS_SET_CERTIFICATE = (byte) 0x41;
-    protected static final byte INS_MARK_FACTORY_TESTS_PASSED = (byte) 0x42;
     protected static final byte INS_GET_CARD_CERTIFICATE = (byte) 0x52;
     protected static final byte INS_VALIDATE_HOST_CERTIFICATE = (byte) 0x51;
     protected static final byte INS_SET_PIN = (byte) 0xD0;

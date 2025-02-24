@@ -18,13 +18,13 @@ import static com.ledger.appletcharon.Constants.INS_GET_CARD_CERTIFICATE;
 import static com.ledger.appletcharon.Constants.INS_GET_DATA;
 import static com.ledger.appletcharon.Constants.INS_GET_PUBLIC_KEY;
 import static com.ledger.appletcharon.Constants.INS_GET_STATUS;
-import static com.ledger.appletcharon.Constants.INS_MARK_FACTORY_TESTS_PASSED;
 import static com.ledger.appletcharon.Constants.INS_PIN_CHANGE;
 import static com.ledger.appletcharon.Constants.INS_RESTORE_SEED;
 import static com.ledger.appletcharon.Constants.INS_SET_CERTIFICATE;
 import static com.ledger.appletcharon.Constants.INS_SET_DATA;
 import static com.ledger.appletcharon.Constants.INS_SET_PIN;
 import static com.ledger.appletcharon.Constants.INS_SET_SEED;
+import static com.ledger.appletcharon.Constants.INS_SET_STATUS;
 import static com.ledger.appletcharon.Constants.INS_VALIDATE_HOST_CERTIFICATE;
 import static com.ledger.appletcharon.Constants.INS_VERIFY_PIN;
 import static com.ledger.appletcharon.Constants.INS_VERIFY_SEED;
@@ -694,20 +694,27 @@ public class CommandProcessor {
         return 0;
     }
 
-    private short markFactoryTestsDone(byte[] buffer) {
+    private short setStatus(byte[] buffer) {
         if (ramBuffer[0] != AppletStateMachine.STATE_PENDING_TESTS || ramBuffer[1] != TransientStateMachine.STATE_IDLE) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
-        // Check P1 and P2 are 0
-        if (buffer[ISO7816.OFFSET_P1] != 0 || buffer[ISO7816.OFFSET_P2] != 0) {
+        // Check P1 is 0
+        if (buffer[ISO7816.OFFSET_P1] != 0) {
             ISOException.throwIt(SW_WRONG_P1P2);
         }
+
         // Check length field
         if (buffer[ISO7816.OFFSET_LC] != 0) {
             ISOException.throwIt(SW_WRONG_LENGTH);
         }
-        app.appletFSM.transition(AppletStateMachine.EVENT_FACTORY_TESTS_PASSED);
-        app.transientFSM.transition(TransientStateMachine.EVENT_SET_CERTIFICATE_AND_TESTS_PASSED);
+
+        // Check P2 == STATE_ATTESTED
+        if (buffer[ISO7816.OFFSET_P2] == AppletStateMachine.STATE_ATTESTED) {
+            app.appletFSM.transition(AppletStateMachine.EVENT_FACTORY_TESTS_PASSED);
+            app.transientFSM.transition(TransientStateMachine.EVENT_SET_CERTIFICATE_AND_TESTS_PASSED);
+        } else {
+            ISOException.throwIt(SW_WRONG_P1P2);
+        }
         return 0;
 
     }
@@ -726,8 +733,8 @@ public class CommandProcessor {
         case INS_SET_CERTIFICATE:
             cdatalength = setCertificate(buffer, cdatalength);
             break;
-        case INS_MARK_FACTORY_TESTS_PASSED:
-            cdatalength = markFactoryTestsDone(buffer);
+        case INS_SET_STATUS:
+            cdatalength = setStatus(buffer);
             break;
         case INS_GET_CARD_CERTIFICATE:
             cdatalength = getCardCertificate(buffer);

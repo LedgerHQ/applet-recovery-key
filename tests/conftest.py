@@ -69,7 +69,7 @@ TEST_CATEGORIES = [
             "get_data",
             "get_public_key",
             "set_certificate",
-            "mark_factory_tests_passed",
+            "set_status",
             "get_certificate",
             "validate_certificate",
             "set_pin",
@@ -195,10 +195,10 @@ TEST_CATEGORY_DESCRIPTIONS = {
     ),
     (
         "commands",
-        "mark_factory_tests_passed",
+        "set_status",
     ): (
-        "MARK FACTORY TESTS PASSED Command",
-        "Tests that verify the behavior of the MARK FACTORY TESTS PASSED command",
+        "SET STATUS Command",
+        "Tests that verify the behavior of the SET STATUS command",
     ),
 }
 TEST_DOC_URL = "https://ledgerhq.atlassian.net/wiki/spaces/FW/pages/5027168270/Charon+-+Tech+-+Test+Plan+-+Applet#Charon---{category}"

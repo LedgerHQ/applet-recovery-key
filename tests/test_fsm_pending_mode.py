@@ -139,14 +139,13 @@ def test_fsm_pending_unauthorized_cmds(client):
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
 
-@pytest.mark.description(
-    "'MARK_FACTORY_TESTS_PASSED' is supported and should return 0x9000"
-)
+@pytest.mark.description("'SET STATUS' is supported and should return 0x9000")
 @pytest.mark.test_spec("CHA_STATE_PEN_OK_02")
 @pytest.mark.order("last")
 @pytest.mark.state_machine("pending_tests")
 def test_fsm_pending_mark_factory_tests_passed(client):
     check_applet_state(client)
+    # This client method calls SET STATUS with P2=ATTESTED
     client.mark_factory_tests_passed()
     infos = client.get_status()
     assert infos.fsm_state == "Attested"

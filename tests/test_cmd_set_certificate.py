@@ -122,30 +122,15 @@ def test_cmd_set_certificate_failed_signature_verif(sender, client):
     certificate, _ = client.generate_card_static_certificate(
         client.card_serial_number, client.card_public_key, unhexlify(TEST_AUTH_PRIV_KEY)
     )
-    # Certificate :
-    # [
-    #   batch serial |
-    #   length issuer_public_key (1 byte) = 65 |
-    #   issuer_public_key |
-    #   length cert_header (1 byte) = 4 |
-    #   cert_header |
-    #   length signature (1 byte) = 71 |
-    #   signature |
-    #   length PCB_ID (1 byte) = 4 |
-    #   PCB_ID
-    # ]
     # Tamper the signature
-    certificate = bytearray(unhexlify(certificate))
-    offset_sig = 4 + 1 + 65 + 1 + 4 + 1
-    length_sig = 71
-    dummy_signature = bytearray([0x00] * length_sig)
-    certificate[offset_sig : offset_sig + length_sig] = dummy_signature
+    wrong_data = bytearray(8)
+    wrong_certificate = unhexlify(certificate)[:-8] + wrong_data
     _, sw1, sw2 = sender.build_and_send_apdu_no_throw(
         cla=CLA,
         ins=InsType.SET_CERTIFICATE,
         p1=P1.P1_DEFAULT,
         p2=P2.P2_DEFAULT,
-        data=certificate,
+        data=wrong_certificate,
     )
     assert_sw(sw1, sw2, StatusWords.SECURITY_STATUS_NOT_SATISFIED)
 
@@ -157,32 +142,15 @@ def test_cmd_set_certificate_failed_signature_verif(sender, client):
 @pytest.mark.commands("set_certificate")
 def test_cmd_set_certificate_wrong_card_serial(sender, client):
     configure_applet(client)
+    wrong_serial_number = b'\xFF\xFF\xFF\xFF'
     certificate, _ = client.generate_card_static_certificate(
-        client.card_serial_number, client.card_public_key, unhexlify(TEST_AUTH_PRIV_KEY)
+        wrong_serial_number, client.card_public_key, unhexlify(TEST_AUTH_PRIV_KEY)
     )
-    # Certificate :
-    # [
-    #   batch serial |
-    #   length issuer_public_key (1 byte) = 65 |
-    #   issuer_public_key |
-    #   length cert_header (1 byte) = 4 |
-    #   cert_header |
-    #   length signature (1 byte) = 71 |
-    #   signature |
-    #   length PCB_ID (1 byte) = 4 |
-    #   PCB_ID
-    # ]
-    # Tamper the signature
-    certificate = bytearray(unhexlify(certificate))
-    offset_header = 4 + 1 + 65 + 1
-    length_header = 4
-    dummy_header = bytearray([0x00] * length_header)
-    certificate[offset_header : offset_header + length_header] = dummy_header
     _, sw1, sw2 = sender.build_and_send_apdu_no_throw(
         cla=CLA,
         ins=InsType.SET_CERTIFICATE,
         p1=P1.P1_DEFAULT,
         p2=P2.P2_DEFAULT,
-        data=certificate,
+        data=unhexlify(certificate),
     )
     assert_sw(sw1, sw2, StatusWords.WRONG_PARAMETERS)

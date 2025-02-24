@@ -29,9 +29,11 @@ import static com.ledger.appletcharon.Constants.SW_SECURITY_STATUS;
 import static com.ledger.appletcharon.Constants.SW_WRONG_LENGTH;
 import static com.ledger.appletcharon.Constants.SW_WRONG_P1P2;
 import static com.ledger.appletcharon.Utils.buildTLVField;
+import static com.ledger.appletcharon.Utils.parseTLVGetOffset;
 import static com.ledger.appletcharon.Version.APPLET_MAJOR_VERSION;
 import static com.ledger.appletcharon.Version.APPLET_MINOR_VERSION;
 import static com.ledger.appletcharon.Version.APPLET_PATCH_VERSION;
+import static com.ledger.appletcharon.Constants.CERTIFICATE_TRUSTED_NAME_TAG;
 
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
@@ -154,9 +156,7 @@ public class CommandProcessor {
      *
      * lc: data_len
      *
-     * data: - batch serial number (4b) - issuer public key length (1b) - issuer
-     * public key - card serial number length (1b) - card serial number - issuer
-     * signature length (1b) - issuer signature
+     * data: - issuer public key length (1b) - issuer public key - certificate length - certificate
      *
      * return: none
      */
@@ -175,25 +175,18 @@ public class CommandProcessor {
             ISOException.throwIt(SW_WRONG_LENGTH);
         }
 
-        app.cardCertificate.setBatchSerial(buffer, ISO7816.OFFSET_CDATA);
-        short offset = ISO7816.OFFSET_CDATA + Certificate.BATCH_SERIAL_LEN;
-        // buffer[offset] = issuer public key length
-        app.cardCertificate.setIssuerPublicKey(buffer, (short) (offset + 1), buffer[offset]);
-        offset += 1 + buffer[offset];
+        // offset for certificate
+        // LC = certificateLength
+        short offset = ISO7816.OFFSET_CDATA;
+        offset = parseTLVGetOffset(CERTIFICATE_TRUSTED_NAME_TAG, buffer, offset, cdatalength);
         // Check serial number
         if (Util.arrayCompare(buffer, (short) (offset + 1), app.serialNumber, (short) 0, buffer[offset]) != 0) {
             ISOException.throwIt(SW_INCORRECT_PARAMETERS);
         }
-        offset += 1 + buffer[offset];
-        // buffer[offset] = signature length
-        app.cardCertificate.setSignature(buffer, (short) (offset + 1), buffer[offset]);
 
         // Verify signature
-        // The curve is the same as in getPublicKey
-        app.cardCertificate.setCurve(app.crypto.getCurve());
-        ramBuffer[0] = (byte) app.certificatePublicKey.getW(ramBuffer, (short) 1);
-        app.cardCertificate.setPublicKey(ramBuffer, (short) 1, (short) ramBuffer[0]);
-        if (app.cardCertificate.verifySignature() != true) {
+        offset = ISO7816.OFFSET_CDATA;
+        if (app.cardCertificatePKI.verifySignature(buffer, offset, cdatalength) != true) {
             ISOException.throwIt(SW_SECURITY_STATUS);
         }
         // Set FSM state
@@ -253,7 +246,7 @@ public class CommandProcessor {
                 ISOException.throwIt(SW_WRONG_LENGTH);
             }
             app.ephemeralCertificate.setHostChallenge(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC]);
-            return app.cardCertificate.getCertificate(buffer, (short) 0);
+            return app.cardCertificatePKI.getCertificate(buffer, (short) 0);
         } else if (buffer[ISO7816.OFFSET_P1] == P1_GET_EPHEMERAL_CERTIFICATE) {
             // Check that no data is present
             if (buffer[ISO7816.OFFSET_LC] != 0) {
@@ -346,7 +339,7 @@ public class CommandProcessor {
         // Get HW issuer signature length
         byte hwCertSignatureLength = buffer[offset++];
         // Get Issuer public key and length, store it in ramBuffer
-        byte issuerPublicKeyLength = (byte) app.cardCertificate.getIssuerPublicKey(ramBuffer, (short) (1 + hwSNLength + hwPubKeyLength));
+        byte issuerPublicKeyLength = (byte) app.cardCertificatePKI.getIssuerPublicKey(ramBuffer, (short) (1 + hwSNLength + hwPubKeyLength));
         // Verify signature
         if (app.crypto.getCurveId() != CryptoUtil.SECP256K1) {
             app.crypto.initCurve((byte) CryptoUtil.SECP256K1);

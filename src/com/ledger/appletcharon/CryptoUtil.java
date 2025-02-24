@@ -29,6 +29,7 @@ public class CryptoUtil {
     protected static final byte SECP256K1 = (byte) 0x21;
     // Private key length over SECP256K1
     protected static final byte SECP256K1_PRIVATE_KEY_LEN = (byte) 32;
+    protected static final byte SECP256K1_PUBLIC_KEY_LEN = (byte) 65 ;
 
     /**
      * Constructor

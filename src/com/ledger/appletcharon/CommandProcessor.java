@@ -13,6 +13,21 @@ import static com.ledger.appletcharon.Constants.GET_STATUS_TRANSIENT_FSM_STATE_T
 import static com.ledger.appletcharon.Constants.HW_CERT_ROLE;
 import static com.ledger.appletcharon.Constants.HW_EPH_CERT_ROLE;
 import static com.ledger.appletcharon.Constants.HW_SN_LENGTH;
+import static com.ledger.appletcharon.Constants.INS_FACTORY_RESET;
+import static com.ledger.appletcharon.Constants.INS_GET_CARD_CERTIFICATE;
+import static com.ledger.appletcharon.Constants.INS_GET_DATA;
+import static com.ledger.appletcharon.Constants.INS_GET_PUBLIC_KEY;
+import static com.ledger.appletcharon.Constants.INS_GET_STATUS;
+import static com.ledger.appletcharon.Constants.INS_PIN_CHANGE;
+import static com.ledger.appletcharon.Constants.INS_RESTORE_SEED;
+import static com.ledger.appletcharon.Constants.INS_SET_CERTIFICATE;
+import static com.ledger.appletcharon.Constants.INS_SET_DATA;
+import static com.ledger.appletcharon.Constants.INS_SET_PIN;
+import static com.ledger.appletcharon.Constants.INS_SET_SEED;
+import static com.ledger.appletcharon.Constants.INS_SET_STATUS;
+import static com.ledger.appletcharon.Constants.INS_VALIDATE_HOST_CERTIFICATE;
+import static com.ledger.appletcharon.Constants.INS_VERIFY_PIN;
+import static com.ledger.appletcharon.Constants.INS_VERIFY_SEED;
 import static com.ledger.appletcharon.Constants.MAX_CARD_NAME_LENGTH;
 import static com.ledger.appletcharon.Constants.P1_GET_EPHEMERAL_CERTIFICATE;
 import static com.ledger.appletcharon.Constants.P1_GET_STATIC_CERTIFICATE;
@@ -40,21 +55,6 @@ import javacard.framework.ISOException;
 import javacard.framework.Util;
 
 public class CommandProcessor {
-    private static final byte INS_GET_STATUS = (byte) 0xF2;
-    private static final byte INS_GET_DATA = (byte) 0xCA;
-    private static final byte INS_GET_PUBLIC_KEY = (byte) 0x40;
-    private static final byte INS_SET_CERTIFICATE = (byte) 0x41;
-    private static final byte INS_GET_CARD_CERTIFICATE = (byte) 0x52;
-    private static final byte INS_VALIDATE_HOST_CERTIFICATE = (byte) 0x51;
-    private static final byte INS_SET_PIN = (byte) 0xD0;
-    private static final byte INS_SET_SEED = (byte) 0xE0;
-    private static final byte INS_VERIFY_PIN = (byte) 0x20;
-    private static final byte INS_PIN_CHANGE = (byte) 0x24;
-    private static final byte INS_RESTORE_SEED = (byte) 0x14;
-    private static final byte INS_VERIFY_SEED = (byte) 0x2A;
-    private static final byte INS_SET_DATA = (byte) 0xDA;
-    private static final byte INS_FACTORY_RESET = (byte) 0xE4;
-
     private final AppletCharon app;
     private final byte[] ramBuffer;
 
@@ -191,7 +191,6 @@ public class CommandProcessor {
         }
         // Set FSM state
         app.appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
-        app.transientFSM.transition(TransientStateMachine.EVENT_SET_CERTIFICATE);
         return 0;
     }
 
@@ -695,6 +694,31 @@ public class CommandProcessor {
         return 0;
     }
 
+    private short setStatus(byte[] buffer) {
+        if (ramBuffer[0] != AppletStateMachine.STATE_PENDING_TESTS || ramBuffer[1] != TransientStateMachine.STATE_IDLE) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        // Check P1 is 0
+        if (buffer[ISO7816.OFFSET_P1] != 0) {
+            ISOException.throwIt(SW_WRONG_P1P2);
+        }
+
+        // Check length field
+        if (buffer[ISO7816.OFFSET_LC] != 0) {
+            ISOException.throwIt(SW_WRONG_LENGTH);
+        }
+
+        // Check P2 == STATE_ATTESTED
+        if (buffer[ISO7816.OFFSET_P2] == AppletStateMachine.STATE_ATTESTED) {
+            app.appletFSM.transition(AppletStateMachine.EVENT_FACTORY_TESTS_PASSED);
+            app.transientFSM.transition(TransientStateMachine.EVENT_SET_CERTIFICATE_AND_TESTS_PASSED);
+        } else {
+            ISOException.throwIt(SW_WRONG_P1P2);
+        }
+        return 0;
+
+    }
+
     public short processCommand(byte[] buffer, short cDataLength) throws ISOException {
 
         short cdatalength = cDataLength;
@@ -708,6 +732,9 @@ public class CommandProcessor {
             break;
         case INS_SET_CERTIFICATE:
             cdatalength = setCertificate(buffer, cdatalength);
+            break;
+        case INS_SET_STATUS:
+            cdatalength = setStatus(buffer);
             break;
         case INS_GET_CARD_CERTIFICATE:
             cdatalength = getCardCertificate(buffer);

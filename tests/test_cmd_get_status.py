@@ -1,9 +1,14 @@
 import logging
 import pytest
 from ledger_pluto.client import CLA, InsType, P1, P2
+from ledger_pluto.command_sender import GPCommandSender
+from ledger_pluto.backend.jrcp_backend import JRCPBackend
 from .conftest import (
     StatusWords,
     assert_sw,
+    ENC_KEY,
+    MAC_KEY,
+    AID,
 )
 
 logger = logging.getLogger(__name__)
@@ -15,12 +20,31 @@ def check_applet_state(client):
     assert infos.transient_fsm_state == "Idle"
 
 
-@pytest.mark.description("'GET STATUS' is supported and should return 0x9000")
+@pytest.mark.description(
+    "'GET STATUS' is supported when a SCP03 secure channel is open and should return 0x9000"
+)
 @pytest.mark.test_spec("CHA_APP_GS_OK_01")
 @pytest.mark.commands("get_status")
-def test_cmd_get_status(client):
+def test_cmd_get_status(client, sender):
     # This function calls client.get_status() which verifies that GET STATUS returns 0x9000
+    assert sender.secure_channel_opened is True
     check_applet_state(client)
+
+
+@pytest.mark.description(
+    "'GET STATUS' is supported without a SCP03 secure channel and should return 0x9000"
+)
+@pytest.mark.test_spec("CHA_APP_GS_OK_02")
+@pytest.mark.commands("get_status")
+def test_cmd_get_status_no_secure_channel(client):
+    backend = JRCPBackend()
+    backend.connect()
+    sender = GPCommandSender(backend, ENC_KEY, MAC_KEY)
+    client.sender = sender
+    sender.send_select(AID)
+    assert sender.secure_channel_opened is False
+    check_applet_state(client)
+    backend.disconnect()
 
 
 @pytest.mark.description(

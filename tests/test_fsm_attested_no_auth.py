@@ -24,11 +24,13 @@ def check_applet_state(client):
 @pytest.mark.description("'GET STATUS' is supported and should return 0x9000")
 @pytest.mark.test_spec("CHA_STATE_HSM1_OK_01")
 @pytest.mark.state_machine("attested1")
+@pytest.mark.order("first")
 def test_fsm_attested_no_auth_get_status(client):
     # Set certificate to enter Attested mode
     client.set_issuer_key(AID, bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
     client.get_public_key_and_verify()
     client.set_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
+    client.mark_factory_tests_passed()
     # This function calls client.get_status() which verifies that GET STATUS returns 0x9000
     check_applet_state(client)
 
@@ -42,14 +44,6 @@ def test_fsm_attested_no_auth_get_cert(client):
     check_applet_state(client)
     client.get_card_static_certificate_and_verify()
     client.get_card_ephemeral_certificate_and_verify()
-
-
-@pytest.mark.description("'GET DATA' is supported and should return 0x9000")
-@pytest.mark.test_spec("CHA_STATE_HSM1_OK_03")
-@pytest.mark.state_machine("attested1")
-@pytest.mark.skip("TODO: implement GET DATA command in applet first")
-def test_fsm_attested_no_auth_get_data(client):
-    check_applet_state(client)
 
 
 @pytest.mark.description("Unauthorized commands should be rejected with 0x6985")
@@ -112,11 +106,15 @@ def test_fsm_attest_no_auth_unauthorized_cmds(client):
         client.factory_reset()
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
+    with pytest.raises(AssertionError) as e:
+        client.mark_factory_tests_passed()
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
+
 
 @pytest.mark.description(
     "'VALIDATE CERTIFICATE' with P1 = 0x00 and P1 = 0x01 are supported and should return 0x9000"
 )
-@pytest.mark.test_spec("CHA_STATE_HSM1_OK_04")
+@pytest.mark.test_spec("CHA_STATE_HSM1_OK_03")
 @pytest.mark.state_machine("attested1")
 def test_fsm_attested_no_auth_validate_hw_cert(client):
     check_applet_state(client)

@@ -36,6 +36,7 @@ def setup_applet():
     client.set_issuer_key(AID, bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
     client.get_public_key_and_verify()
     client.set_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
+    client.mark_factory_tests_passed()
     client.get_card_static_certificate_and_verify()
     client.get_card_ephemeral_certificate_and_verify()
     client.validate_hw_static_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
@@ -69,14 +70,6 @@ def test_fsm_perso_pin_lock_get_cert(client):
     check_applet_state(client)
     client.get_card_static_certificate_and_verify()
     client.get_card_ephemeral_certificate_and_verify()
-
-
-@pytest.mark.description("'GET DATA' is supported and should return 0x9000")
-@pytest.mark.test_spec("CHA_STATE_UP_LOCKED_OK_03")
-@pytest.mark.state_machine("perso_pin_lock")
-@pytest.mark.skip("TODO: implement GET DATA command in applet first")
-def test_fsm_perso_pin_lock_get_data(client):
-    check_applet_state(client)
 
 
 @pytest.mark.description(
@@ -150,4 +143,8 @@ def test_fsm_perso_pin_lock_unauthorized_cmds(client):
 
     with pytest.raises(AssertionError) as e:
         client.factory_reset()
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
+
+    with pytest.raises(AssertionError) as e:
+        client.mark_factory_tests_passed()
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED

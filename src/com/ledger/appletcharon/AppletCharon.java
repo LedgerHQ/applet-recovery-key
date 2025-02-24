@@ -16,6 +16,7 @@ import static com.ledger.appletcharon.Constants.GP_CLA_INITIALIZE_UPDATE;
 import static com.ledger.appletcharon.Constants.GP_INS_EXTERNAL_AUTHENTICATE;
 import static com.ledger.appletcharon.Constants.GP_INS_INITIALIZE_UPDATE;
 import static com.ledger.appletcharon.Constants.HW_SN_LENGTH;
+import static com.ledger.appletcharon.Constants.INS_GET_STATUS;
 import static com.ledger.appletcharon.Constants.KEY_TYPE_PRIVATE_ECC;
 import static com.ledger.appletcharon.Constants.KEY_TYPE_PUBLIC_ECC;
 import static com.ledger.appletcharon.Constants.KEY_USAGE_SIGNATURE;
@@ -512,14 +513,18 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             return;
         }
 
-        // For any other command than GP commands, check the security level
-        if (!checkSecurityLevel()) {
-            ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
-        }
-
         // Check if the APDU is a Ledger command
         if (buffer[ISO7816.OFFSET_CLA] != LEDGER_COMMAND_CLA) {
             ISOException.throwIt(ISO7816.SW_CLA_NOT_SUPPORTED);
+        }
+
+        // Check if the instruction is GET_STATUS before checking the security level
+        if (buffer[ISO7816.OFFSET_INS] != INS_GET_STATUS) {
+            // For any other command than GP commands and GET_STATUS, check the security
+            // level
+            if (!checkSecurityLevel()) {
+                ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+            }
         }
 
         // Use GP API to unwrap data from secure channel.
@@ -544,7 +549,9 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         buffer[(short) (cdatalength + 1)] = (byte) 0x00;
         cdatalength += 2;
         // Wrap buffer with secure channel
-        cdatalength = secureChannel.wrap(buffer, (short) 0, cdatalength);
+        if (secureChannel != null) {
+            cdatalength = secureChannel.wrap(buffer, (short) 0, cdatalength);
+        }
         // Send the response
         apdu.setOutgoingAndSend((short) 0, cdatalength);
     }

@@ -16,6 +16,23 @@ public final class Constants {
     // RAM buffer size
     protected static final short RAM_BUFFER_SIZE = 256;
 
+    // Instruction codes
+    protected static final byte INS_SET_STATUS = (byte) 0xF0;
+    protected static final byte INS_GET_STATUS = (byte) 0xF2;
+    protected static final byte INS_GET_DATA = (byte) 0xCA;
+    protected static final byte INS_GET_PUBLIC_KEY = (byte) 0x40;
+    protected static final byte INS_SET_CERTIFICATE = (byte) 0x41;
+    protected static final byte INS_GET_CARD_CERTIFICATE = (byte) 0x52;
+    protected static final byte INS_VALIDATE_HOST_CERTIFICATE = (byte) 0x51;
+    protected static final byte INS_SET_PIN = (byte) 0xD0;
+    protected static final byte INS_SET_SEED = (byte) 0xE0;
+    protected static final byte INS_VERIFY_PIN = (byte) 0x20;
+    protected static final byte INS_PIN_CHANGE = (byte) 0x24;
+    protected static final byte INS_RESTORE_SEED = (byte) 0x14;
+    protected static final byte INS_VERIFY_SEED = (byte) 0x2A;
+    protected static final byte INS_SET_DATA = (byte) 0xDA;
+    protected static final byte INS_FACTORY_RESET = (byte) 0xE4;
+
     // P1 values
     protected static final byte P1_GET_STATIC_CERTIFICATE = (byte) 0x00;
     protected static final byte P1_GET_EPHEMERAL_CERTIFICATE = (byte) 0x80;

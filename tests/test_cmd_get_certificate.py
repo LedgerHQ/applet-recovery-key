@@ -22,6 +22,7 @@ def configure_client_and_check_state(client):
     client.set_issuer_key(AID, bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
     client.get_public_key_and_verify()
     client.set_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
+    client.mark_factory_tests_passed()
     check_applet_state(client)
 
 

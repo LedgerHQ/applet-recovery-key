@@ -22,7 +22,7 @@ public class TransientStateMachine {
     public static final byte STATE_PIN_UNLOCKED = 4;
 
     // Constants for events
-    public static final byte EVENT_SET_CERTIFICATE = 0;
+    public static final byte EVENT_SET_CERTIFICATE_AND_TESTS_PASSED = 0;
     public static final byte EVENT_CERT_VALID = 1;
     public static final byte EVENT_PIN_VERIFIED = 2;
     public static final byte EVENT_PIN_TRY_LIMIT_EXCEEDED = 3;
@@ -70,7 +70,7 @@ public class TransientStateMachine {
         byte newState;
         byte appletState = appletStateMachine.getCurrentState();
 
-        if (appletState == AppletStateMachine.STATE_FABRICATION) {
+        if (appletState == AppletStateMachine.STATE_FABRICATION || appletState == AppletStateMachine.STATE_PENDING_TESTS) {
             newState = STATE_IDLE;
         } else if (appletState == AppletStateMachine.STATE_ATTESTED) {
             newState = STATE_INITIALIZED;
@@ -86,7 +86,7 @@ public class TransientStateMachine {
 
         switch (currentState) {
         case STATE_IDLE:
-            if (event == EVENT_SET_CERTIFICATE) {
+            if (event == EVENT_SET_CERTIFICATE_AND_TESTS_PASSED) {
                 newState = STATE_INITIALIZED;
             }
             break;

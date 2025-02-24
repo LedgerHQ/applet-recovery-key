@@ -3,7 +3,7 @@ import os
 import pytest
 from ledgerblue.ecWrapper import PrivateKey
 from binascii import unhexlify
-from ledger_pluto.client import CLA, InsType, P1, P2, HW_PUBLIC_KEY, HW_SERIAL_NUMBER
+from ledger_pluto.client import CLA, InsType, P1, P2
 from .conftest import (
     TEST_AUTH_PRIV_KEY,
     TEST_ISSUER_PRIV_KEY,
@@ -15,49 +15,41 @@ from .conftest import (
 logger = logging.getLogger(__name__)
 
 
-def configure_client_and_check_state(client):
-    client.get_card_static_certificate_and_verify()
-    client.get_card_ephemeral_certificate_and_verify()
-    client.validate_hw_static_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
-    client.validate_hw_ephemeral_certificate()
+def check_applet_state(client):
     infos = client.get_status()
-    assert infos.fsm_state == "Attested"
-    assert infos.transient_fsm_state == "Authenticated"
+    assert infos.fsm_state == "Pending_Tests"
+    assert infos.transient_fsm_state == "Idle"
 
 
-@pytest.mark.description("'GET STATUS' is supported and should return 0x9000")
-@pytest.mark.test_spec("CHA_STATE_HSM2_OK_01")
-@pytest.mark.state_machine("attested2")
-@pytest.mark.order("first")
-def test_fsm_attested_auth_get_status(client):
-    # Set certificate to enter Attested mode and authenticate
+def configure_client_and_check_state(client):
     client.set_issuer_key(AID, bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
     client.get_public_key_and_verify()
     client.set_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
-    client.mark_factory_tests_passed()
-    client.get_card_static_certificate_and_verify()
-    client.get_card_ephemeral_certificate_and_verify()
-    client.validate_hw_static_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))
-    client.validate_hw_ephemeral_certificate()
-    infos = client.get_status()
-    assert infos.fsm_state == "Attested"
-    assert infos.transient_fsm_state == "Authenticated"
+    check_applet_state(client)
 
 
-@pytest.mark.description("'SET PIN' is supported and should return 0x9000")
-@pytest.mark.test_spec("CHA_STATE_HSM2_OK_02")
-@pytest.mark.state_machine("attested2")
-def test_fsm_attested_auth_set_pin(client):
+@pytest.mark.description("'GET STATUS' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_PEN_OK_01")
+@pytest.mark.state_machine("pending_tests")
+@pytest.mark.order("first")
+def test_fsm_pending_get_status(client):
+    # This function calls client.get_status() which verifies that GET STATUS returns 0x9000
     configure_client_and_check_state(client)
-    pin_digits = bytes([0x01, 0x02, 0x03, 0x04])
-    client.set_pin(pin_digits)
 
 
 @pytest.mark.description("Unauthorized commands should be rejected with 0x6985")
-@pytest.mark.test_spec("CHA_STATE_HSM2_FAIL_01")
-@pytest.mark.state_machine("attested2")
-def test_fsm_attested_auth_unauthorized_cmds(client):
-    configure_client_and_check_state(client)
+@pytest.mark.test_spec("CHA_STATE_PEN_FAIL_01")
+@pytest.mark.state_machine("pending_tests")
+def test_fsm_pending_unauthorized_cmds(client):
+    # Dummy ephemeral keys (we don't care about the actual values, it's just so the client
+    # can send the commands we want to test)
+    dummy_priv_key = PrivateKey()
+    dummy_pub_key = dummy_priv_key.pubkey.serialize(compressed=False)
+    dummy_seed = os.urandom(SEED_LEN)
+
+    check_applet_state(client)
+    client.card_serial_number = bytes([0x01, 0x02, 0x03, 0x04])
+    client.card_public_key = dummy_pub_key
 
     with pytest.raises(AssertionError) as e:
         client.get_public_key_and_verify()
@@ -72,14 +64,10 @@ def test_fsm_attested_auth_unauthorized_cmds(client):
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
     with pytest.raises(AssertionError) as e:
-        client.get_card_ephemeral_certificate_and_verify()
-    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
-
-    with pytest.raises(AssertionError) as e:
         hw_static_certificate, _ = client.generate_hw_static_certificate(
-            unhexlify(HW_SERIAL_NUMBER),
-            unhexlify(HW_PUBLIC_KEY),
-            bytearray.fromhex(TEST_AUTH_PRIV_KEY),
+            bytes([0x01, 0x02, 0x03, 0x04]),
+            dummy_pub_key,
+            unhexlify(dummy_priv_key.serialize()),
         )
         client.sender.build_and_send_apdu(
             cla=CLA,
@@ -91,12 +79,16 @@ def test_fsm_attested_auth_unauthorized_cmds(client):
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
     with pytest.raises(AssertionError) as e:
-        client.hw_ephemeral_private_key = PrivateKey()
-        client.hw_ephemeral_public_key = client.hw_ephemeral_private_key.pubkey
+        client.get_card_ephemeral_certificate_and_verify()
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
+
+    client.capsule.set_hw_ephemeral_private_key(dummy_priv_key)
+    client.capsule.set_card_ephemeral_public_key(dummy_pub_key)
+    client.capsule.generate_session_keys()
+
+    with pytest.raises(AssertionError) as e:
         hw_ephemeral_certificate, _ = client.generate_hw_ephemeral_certificate(
-            client.host_challenge,
-            client.card_challenge,
-            client.hw_ephemeral_public_key.serialize(compressed=False),
+            client.host_challenge, client.card_challenge, dummy_pub_key
         )
         client.sender.build_and_send_apdu(
             cla=CLA,
@@ -108,6 +100,14 @@ def test_fsm_attested_auth_unauthorized_cmds(client):
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
     pin_digits = bytes([0x01, 0x02, 0x03, 0x04])
+    with pytest.raises(AssertionError) as e:
+        client.set_pin(pin_digits)
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
+
+    with pytest.raises(AssertionError) as e:
+        client.set_seed(dummy_seed)
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
+
     with pytest.raises(AssertionError) as e:
         client.verify_pin(pin_digits)
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
@@ -121,8 +121,12 @@ def test_fsm_attested_auth_unauthorized_cmds(client):
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
     with pytest.raises(AssertionError) as e:
-        dummy_seed = os.urandom(SEED_LEN)
         client.verify_seed(dummy_seed)
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
+
+    with pytest.raises(AssertionError) as e:
+        data_tag = "9F17"
+        client.get_data(int(data_tag, 16))
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
     with pytest.raises(AssertionError) as e:
@@ -134,19 +138,15 @@ def test_fsm_attested_auth_unauthorized_cmds(client):
         client.factory_reset()
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
-    with pytest.raises(AssertionError) as e:
-        client.mark_factory_tests_passed()
-    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
-
-@pytest.mark.description(
-    "After 'SET PIN' has been properly sent, 'SET SEED' is supported and should return 0x9000"
-)
-@pytest.mark.test_spec("CHA_STATE_HSM2_OK_03")
-@pytest.mark.state_machine("attested2")
-def test_fsm_attested_auth_set_seed(client):
-    configure_client_and_check_state(client)
-    pin_digits = bytes([0x01, 0x02, 0x03, 0x04])
-    client.set_pin(pin_digits)
-    seed = os.urandom(SEED_LEN)
-    client.set_seed(seed)
+@pytest.mark.description("'SET STATUS' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_PEN_OK_02")
+@pytest.mark.order("last")
+@pytest.mark.state_machine("pending_tests")
+def test_fsm_pending_mark_factory_tests_passed(client):
+    check_applet_state(client)
+    # This client method calls SET STATUS with P2=ATTESTED
+    client.mark_factory_tests_passed()
+    infos = client.get_status()
+    assert infos.fsm_state == "Attested"
+    assert infos.transient_fsm_state == "Initialized"

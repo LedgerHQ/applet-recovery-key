@@ -113,9 +113,10 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     @Override
     public Element onSave() {
         if (isPinVerifiedForUpgrade[0]) {
-            return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 0, (short) 6).write(serialNumber)
+            return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 1, (short) 7).write(serialNumber)
                     .write(PINManager.save(this.pinManager)).write(SeedManager.save(this.seedManager))
-                    .write(certificatePrivateKey).write(certificatePublicKey).write(CertificatePKI.save(this.cardCertificatePKI));
+                    .write(certificatePrivateKey).write(certificatePublicKey).write(CertificatePKI.save(this.cardCertificatePKI))
+                    .write(this.cardNameLength).write(this.cardName);
         } else {
             ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
             return null;
@@ -133,7 +134,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             return;
         }
         root.initRead();
-        if (root.canReadObject() == (short) 6) {
+        if (root.canReadObject() == (short) 7) {
             serialNumber = (byte[]) root.readObject();
             PINManager pinManager = PINManager.restore((Element) root.readObject());
             if (pinManager != null) {
@@ -149,6 +150,8 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             if (cardCertificatePKI != null) {
                 this.cardCertificatePKI = cardCertificatePKI;
             }
+            this.cardNameLength = (byte) root.readByte();
+            this.cardName = (byte[]) root.readObject();
         }
     }
 

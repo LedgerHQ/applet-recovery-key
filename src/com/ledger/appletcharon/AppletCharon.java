@@ -161,6 +161,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         
         if (cardCertificatePKI.isCertificateSet()) {
             appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
+            appletFSM.transition(AppletStateMachine.EVENT_FACTORY_TESTS_PASSED);
         }
         if (seedManager.isSeedSet() && pinManager.getPINStatus() == PINManager.PIN_STATUS_ACTIVATED) {
             appletFSM.transition(AppletStateMachine.EVENT_SET_SEED);

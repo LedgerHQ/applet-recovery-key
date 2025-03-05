@@ -90,7 +90,10 @@ def test_fsm_perso_pin_unlock_get_data(client):
 @pytest.mark.state_machine("perso_pin_unlock")
 def test_fsm_perso_pin_unlock_restore_seed(client):
     configure_client_and_check_state(client)
-    client.restore_seed()
+    restored_seed_len, restored_seed = client.restore_seed()
+    # Assert that the seed restored is the same as the one we set
+    assert restored_seed_len == SEED_LEN
+    assert restored_seed == TEST_SEED
 
 
 @pytest.mark.description("'VERIFY SEED' is supported and should return 0x9000")

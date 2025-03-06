@@ -479,8 +479,8 @@ public class CommandProcessor {
                 // Reset card name length
                 app.cardNameLength = 0;
                 // Reset PIN, Seed and FSM
-                app.pinManager.resetPIN();
                 app.seedManager.clearSeed();
+                app.pinManager.resetPIN();
                 app.appletFSM.transition(AppletStateMachine.EVENT_PIN_TRY_LIMIT_EXCEEDED);
                 app.transientFSM.transition(TransientStateMachine.EVENT_PIN_TRY_LIMIT_EXCEEDED);
                 ISOException.throwIt(SW_AUTHENTICATION_BLOCKED);
@@ -607,10 +607,10 @@ public class CommandProcessor {
         }
         // Reset card name length
         app.cardNameLength = 0;
-        // Reset PIN
-        app.pinManager.resetPIN();
         // Clear seed
         app.seedManager.clearSeed();
+        // Reset PIN
+        app.pinManager.resetPIN();
         // Reset FSM states
         app.appletFSM.transition(AppletStateMachine.EVENT_FACTORY_RESET);
         app.transientFSM.transition(TransientStateMachine.EVENT_FACTORY_RESET);

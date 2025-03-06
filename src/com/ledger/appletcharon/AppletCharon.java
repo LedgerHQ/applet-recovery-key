@@ -260,10 +260,10 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         try {
             // Reset card name length
             cardNameLength = 0;
-            // Reset PIN
-            pinManager.resetPINOnFatalError();
             // Reset seed
             seedManager.clearSeedOnFatalError();
+            // Reset PIN
+            pinManager.resetPINOnFatalError();
             // Reset secure channel
             secureChannel = null;
         } catch (Exception e) {

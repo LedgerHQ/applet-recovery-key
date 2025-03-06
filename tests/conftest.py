@@ -30,6 +30,7 @@ TEST_AUTH_PRIV_KEY = "7a3f314bdecdf6e7c98b0b4c0dd7e7d0c0e166be8ee7cf4c7eb991a98f
 CAP_FILE = (
     "deliverables/applet-charon/com/ledger/appletcharon/javacard/appletcharon.cap"
 )
+CAP_FILE_UPGRADE = "upgrade/com/ledger/appletcharon/javacard/appletcharon.cap"
 INSTALL_PARAMS = "DEADBEEF"
 ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED = "Status Word: 0x6985"
 SEED_LEN = 32
@@ -75,6 +76,7 @@ TEST_CATEGORIES = [
             "set_pin",
             "change_pin",
             "verify_pin",
+            "request_upgrade",
         ],
     ),
     ("generic", [""]),
@@ -200,6 +202,13 @@ TEST_CATEGORY_DESCRIPTIONS = {
         "SET STATUS Command",
         "Tests that verify the behavior of the SET STATUS command",
     ),
+    (
+        "commands",
+        "request_upgrade",
+    ): (
+        "REQUEST UGPRADE Command",
+        "Tests that verify the behavior of the REQUEST UPGRADE command",
+    ),
 }
 TEST_DOC_URL = "https://ledgerhq.atlassian.net/wiki/spaces/FW/pages/5027168270/Charon+-+Tech+-+Test+Plan+-+Applet#Charon---{category}"
 
@@ -243,6 +252,15 @@ def sender(request) -> Generator[GPCommandSender, None, None]:
 def client(sender) -> Generator[CharonClient, None, None]:
     # Create the client object
     yield CharonClient(sender, capsule_algo=CapsuleAlgorithm.AES_CBC_HMAC)
+
+
+@pytest.fixture(scope="function")
+def loader(sender) -> Generator[AppletLoader, None, None]:
+    loader = AppletLoader(
+        sender,
+        CardManager(sender),
+    )
+    yield loader
 
 
 def get_test_spec_name(item):

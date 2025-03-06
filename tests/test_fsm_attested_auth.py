@@ -138,6 +138,10 @@ def test_fsm_attested_auth_unauthorized_cmds(client):
         client.mark_factory_tests_passed()
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
+    with pytest.raises(AssertionError) as e:
+        client.request_upgrade(pin_digits)
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
+
 
 @pytest.mark.description(
     "After 'SET PIN' has been properly sent, 'SET SEED' is supported and should return 0x9000"

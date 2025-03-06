@@ -125,6 +125,15 @@ def test_fsm_perso_pin_unlock_factory_reset(client):
     client.factory_reset()
 
 
+@pytest.mark.description("'REQUEST UPGRADE' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_UP_MGMT_OK_08")
+@pytest.mark.state_machine("perso_pin_unlock")
+def test_fsm_perso_pin_unlock_request_upgrade(client):
+    configure_client_and_check_state(client)
+    pin_digits = bytes([0x01, 0x02, 0x03, 0x04])
+    client.request_upgrade(pin_digits)
+
+
 @pytest.mark.description("Unauthorized commands should be rejected with 0x6985")
 @pytest.mark.test_spec("CHA_STATE_UP_MGMT_FAIL_01")
 @pytest.mark.state_machine("perso_pin_unlock")

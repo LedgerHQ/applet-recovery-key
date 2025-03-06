@@ -3,6 +3,7 @@ package com.ledger.appletcharon;
 import static com.ledger.appletcharon.Constants.APDU_HEADER_SIZE;
 import static com.ledger.appletcharon.Constants.CARD_CERT_ROLE;
 import static com.ledger.appletcharon.Constants.CARD_TARGET_ID;
+import static com.ledger.appletcharon.Constants.CERTIFICATE_TRUSTED_NAME_TAG;
 import static com.ledger.appletcharon.Constants.DATA_CARD_NAME_TAG;
 import static com.ledger.appletcharon.Constants.DATA_PIN_TRY_COUNTER_TAG;
 import static com.ledger.appletcharon.Constants.GET_STATUS_APPLET_FSM_STATE_TAG;
@@ -19,6 +20,7 @@ import static com.ledger.appletcharon.Constants.INS_GET_DATA;
 import static com.ledger.appletcharon.Constants.INS_GET_PUBLIC_KEY;
 import static com.ledger.appletcharon.Constants.INS_GET_STATUS;
 import static com.ledger.appletcharon.Constants.INS_PIN_CHANGE;
+import static com.ledger.appletcharon.Constants.INS_REQUEST_UPGRADE;
 import static com.ledger.appletcharon.Constants.INS_RESTORE_SEED;
 import static com.ledger.appletcharon.Constants.INS_SET_CERTIFICATE;
 import static com.ledger.appletcharon.Constants.INS_SET_DATA;
@@ -43,12 +45,13 @@ import static com.ledger.appletcharon.Constants.SW_REFERENCE_DATA_NOT_FOUND;
 import static com.ledger.appletcharon.Constants.SW_SECURITY_STATUS;
 import static com.ledger.appletcharon.Constants.SW_WRONG_LENGTH;
 import static com.ledger.appletcharon.Constants.SW_WRONG_P1P2;
+import static com.ledger.appletcharon.Constants.UPGRADE_AUTHORIZATION_DENIED;
+import static com.ledger.appletcharon.Constants.UPGRADE_AUTHORIZATION_GRANTED;
 import static com.ledger.appletcharon.Utils.buildTLVField;
 import static com.ledger.appletcharon.Utils.parseTLVGetOffset;
 import static com.ledger.appletcharon.Version.APPLET_MAJOR_VERSION;
 import static com.ledger.appletcharon.Version.APPLET_MINOR_VERSION;
 import static com.ledger.appletcharon.Version.APPLET_PATCH_VERSION;
-import static com.ledger.appletcharon.Constants.CERTIFICATE_TRUSTED_NAME_TAG;
 
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
@@ -473,7 +476,6 @@ public class CommandProcessor {
         // Verify PIN
         pinVerified = app.pinManager.verifyPIN(ramBuffer);
         if (!pinVerified) {
-            app.isPinVerifiedForUpgrade[0] = false;
             triesRemaining = app.pinManager.getTriesRemaining();
             if (triesRemaining == 0) {
                 // Reset card name length
@@ -488,7 +490,6 @@ public class CommandProcessor {
                 ISOException.throwIt((short) (SW_PIN_COUNTER_CHANGED + triesRemaining));
             }
         } else {
-            app.isPinVerifiedForUpgrade[0] = true;
             // Set FSM state
             app.transientFSM.transition(TransientStateMachine.EVENT_PIN_VERIFIED);
         }
@@ -719,6 +720,42 @@ public class CommandProcessor {
 
     }
 
+    private short requestUpgrade(byte[] buffer, short cdatalength) {
+        boolean pinVerified = false;
+        // Check FSM states
+        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || (ramBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED
+                && ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED)) {
+            ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
+        }
+        // Check P1 and P2 are 0
+        if (buffer[ISO7816.OFFSET_P1] != 0 || buffer[ISO7816.OFFSET_P2] != 0) {
+            ISOException.throwIt(SW_WRONG_P1P2);
+        }
+        // Check data presence
+        if (cdatalength == 0 || buffer[ISO7816.OFFSET_LC] == 0) {
+            ISOException.throwIt(SW_MISSING_SCP_LEDGER);
+        }
+        // Check data length
+        if (cdatalength != buffer[ISO7816.OFFSET_LC] + APDU_HEADER_SIZE) {
+            ISOException.throwIt(ISO7816.SW_WRONG_LENGTH);
+        }
+        // Decrypt data
+        short plainDataLength = app.capsule.decryptData(buffer, ISO7816.OFFSET_CDATA, buffer[ISO7816.OFFSET_LC], ramBuffer, (short) 0);
+        // Check plain PIN data length
+        if (plainDataLength != ramBuffer[0] + 1) {
+            ISOException.throwIt(SW_INCORRECT_PARAMETERS);
+        }
+        // Verify PIN
+        pinVerified = app.pinManager.verifyPIN(ramBuffer);
+        if (pinVerified) {
+            app.upgradeAuthorizationState[0] = UPGRADE_AUTHORIZATION_GRANTED;
+        } else {
+            app.upgradeAuthorizationState[0] = UPGRADE_AUTHORIZATION_DENIED;
+            ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+        }
+        return 0;
+    }
+
     public short processCommand(byte[] buffer, short cDataLength) throws ISOException {
 
         short cdatalength = cDataLength;
@@ -768,6 +805,9 @@ public class CommandProcessor {
             break;
         case INS_FACTORY_RESET:
             cdatalength = factoryReset(buffer, cdatalength);
+            break;
+        case INS_REQUEST_UPGRADE:
+            cdatalength = requestUpgrade(buffer, cdatalength);
             break;
         default:
             ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);

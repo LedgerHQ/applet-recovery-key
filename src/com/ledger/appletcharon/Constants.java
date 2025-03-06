@@ -32,6 +32,7 @@ public final class Constants {
     protected static final byte INS_VERIFY_SEED = (byte) 0x2A;
     protected static final byte INS_SET_DATA = (byte) 0xDA;
     protected static final byte INS_FACTORY_RESET = (byte) 0xE4;
+    protected static final byte INS_REQUEST_UPGRADE = (byte) 0xE5;
 
     // P1 values
     protected static final byte P1_GET_STATIC_CERTIFICATE = (byte) 0x00;
@@ -123,4 +124,8 @@ public final class Constants {
     protected static final byte CERTIFICATE_PUBLIC_KEY_TAG = (byte) 0x33;
     protected static final byte CERTIFICATE_SIGNATURE_TAG = (byte) 0x15;
     protected static final byte CERTIFICATE_TRUSTED_NAME_TAG = (byte) 0x20;
+
+    // Upgrade authorization states
+    protected static final short UPGRADE_AUTHORIZATION_DENIED = (short) 0x634b;
+    protected static final short UPGRADE_AUTHORIZATION_GRANTED = (short) 0x0bb6;
 }

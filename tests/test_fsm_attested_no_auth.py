@@ -110,6 +110,10 @@ def test_fsm_attest_no_auth_unauthorized_cmds(client):
         client.mark_factory_tests_passed()
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
+    with pytest.raises(AssertionError) as e:
+        client.request_upgrade(pin_digits)
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
+
 
 @pytest.mark.description(
     "'VALIDATE CERTIFICATE' with P1 = 0x00 and P1 = 0x01 are supported and should return 0x9000"

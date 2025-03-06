@@ -40,6 +40,8 @@ import static com.ledger.appletcharon.Constants.TAG_KEY_PARAM_LENGTH;
 import static com.ledger.appletcharon.Constants.TAG_KEY_TYPE;
 import static com.ledger.appletcharon.Constants.TAG_KEY_USAGE;
 import static com.ledger.appletcharon.Constants.TAG_KEY_VERSION;
+import static com.ledger.appletcharon.Constants.UPGRADE_AUTHORIZATION_DENIED;
+import static com.ledger.appletcharon.Constants.UPGRADE_AUTHORIZATION_GRANTED;
 
 import org.globalplatform.Application;
 import org.globalplatform.GPSystem;
@@ -75,7 +77,9 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
 
     // PIN management
     protected PINManager pinManager;
-    protected boolean[] isPinVerifiedForUpgrade;
+
+    // Upgrade authorization state
+    protected short[] upgradeAuthorizationState;
 
     // Seed management
     protected SeedManager seedManager;
@@ -112,14 +116,17 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
 
     @Override
     public Element onSave() {
-        if (isPinVerifiedForUpgrade[0]) {
+        // If the Lifecycle FSM state is "user personalized" (PIN and seed set) but the
+        // upgrade authorization is not granted then the applet cannot be upgraded
+        if (appletFSM.getCurrentState() == AppletStateMachine.STATE_USER_PERSONALIZED
+                && upgradeAuthorizationState[0] != UPGRADE_AUTHORIZATION_GRANTED) {
+            ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
+            return null;
+        } else {
             return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 1, (short) 7).write(serialNumber)
                     .write(PINManager.save(this.pinManager)).write(SeedManager.save(this.seedManager))
                     .write(certificatePrivateKey).write(certificatePublicKey).write(CertificatePKI.save(this.cardCertificatePKI))
                     .write(this.cardNameLength).write(this.cardName);
-        } else {
-            ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
-            return null;
         }
     }
 
@@ -177,6 +184,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     @Override
     public boolean select() {
         secureChannel = null;
+        upgradeAuthorizationState[0] = UPGRADE_AUTHORIZATION_DENIED;
         transientFSM.setOnSelectState();
         // Clear PIN if personalization was not completed in the previous session
         // (PIN was set but not the seed)
@@ -232,7 +240,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         hwStaticCertificatePublicKey = JCSystem.makeTransientByteArray(MAX_HW_PUBLIC_KEY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
         hwStaticCertificatePublicKeyLength = JCSystem.makeTransientShortArray((short) 1, JCSystem.CLEAR_ON_DESELECT);
         cardName = new byte[MAX_CARD_NAME_LENGTH];
-        isPinVerifiedForUpgrade = JCSystem.makeTransientBooleanArray((short) 1, JCSystem.CLEAR_ON_RESET);
+        upgradeAuthorizationState = JCSystem.makeTransientShortArray((short) 1, JCSystem.CLEAR_ON_RESET);
         commandProcessor = new CommandProcessor(this, ramBuffer);
         fatalError = new FatalError(this);
         serialNumber = new byte[SN_LENGTH];

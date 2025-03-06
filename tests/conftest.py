@@ -218,6 +218,8 @@ def applet():
     sender = GPCommandSender(backend, ENC_KEY, MAC_KEY)
     manager = CardManager(sender)
     loader = AppletLoader(sender, manager)
+    sender.send_select()
+    sender.open_secure_channel(plain=True)
     loader.install_applet(CAP_FILE)
     loader.store_serial_number(CAP_FILE, serial_number=INSTALL_PARAMS)
 

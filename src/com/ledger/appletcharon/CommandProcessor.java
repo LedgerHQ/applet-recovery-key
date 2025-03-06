@@ -60,10 +60,12 @@ import javacard.framework.Util;
 public class CommandProcessor {
     private final AppletCharon app;
     private final byte[] ramBuffer;
+    private final short[] stateBuffer;
 
-    public CommandProcessor(AppletCharon applet, byte[] ramBuffer) {
+    public CommandProcessor(AppletCharon applet, byte[] ramBuffer, short[] stateBuffer) {
         this.app = applet;
         this.ramBuffer = ramBuffer;
+        this.stateBuffer = stateBuffer;
     }
 
     private short getStatus(byte[] buffer) {
@@ -81,9 +83,9 @@ public class CommandProcessor {
         offset = buildTLVField(buffer, offset, new byte[] { GET_STATUS_APPLET_VERSION_TAG },
                 new byte[] { APPLET_MAJOR_VERSION, APPLET_MINOR_VERSION, APPLET_PATCH_VERSION });
         offset = buildTLVField(buffer, offset, new byte[] { GET_STATUS_APPLET_FSM_STATE_TAG },
-                new byte[] { app.appletFSM.getCurrentState() });
+                new byte[] { app.appletFSM.getCurrentStateForGetStatus() });
         offset = buildTLVField(buffer, offset, new byte[] { GET_STATUS_TRANSIENT_FSM_STATE_TAG },
-                new byte[] { app.transientFSM.getCurrentState() });
+                new byte[] { app.transientFSM.getCurrentStateForGetStatus() });
         return offset;
     }
 
@@ -108,7 +110,7 @@ public class CommandProcessor {
      */
     private short getPublicKey(byte[] buffer) {
         // Check FSM states
-        if (ramBuffer[0] != AppletStateMachine.STATE_FABRICATION || ramBuffer[1] != TransientStateMachine.STATE_IDLE) {
+        if (stateBuffer[0] != AppletStateMachine.STATE_FABRICATION || stateBuffer[1] != TransientStateMachine.STATE_IDLE) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         if (buffer[ISO7816.OFFSET_P1] != 0 || buffer[ISO7816.OFFSET_P2] != 0) {
@@ -159,13 +161,14 @@ public class CommandProcessor {
      *
      * lc: data_len
      *
-     * data: - issuer public key length (1b) - issuer public key - certificate length - certificate
+     * data: - issuer public key length (1b) - issuer public key - certificate
+     * length - certificate
      *
      * return: none
      */
     private short setCertificate(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if (ramBuffer[0] != AppletStateMachine.STATE_FABRICATION || ramBuffer[1] != TransientStateMachine.STATE_IDLE) {
+        if (stateBuffer[0] != AppletStateMachine.STATE_FABRICATION || stateBuffer[1] != TransientStateMachine.STATE_IDLE) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P1 and P2 are 0
@@ -233,8 +236,9 @@ public class CommandProcessor {
      */
     private short getCardCertificate(byte[] buffer) {
         // Check FSM states
-        if ((ramBuffer[0] != AppletStateMachine.STATE_ATTESTED || ramBuffer[1] != TransientStateMachine.STATE_INITIALIZED)
-                && (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_LOCKED)) {
+        if ((stateBuffer[0] != AppletStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_INITIALIZED)
+                && (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED
+                        || stateBuffer[1] != TransientStateMachine.STATE_PIN_LOCKED)) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P2 is 0
@@ -288,8 +292,9 @@ public class CommandProcessor {
      */
     private short validateHostCertificate(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if ((ramBuffer[0] != AppletStateMachine.STATE_ATTESTED || ramBuffer[1] != TransientStateMachine.STATE_INITIALIZED)
-                && (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_LOCKED)) {
+        if ((stateBuffer[0] != AppletStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_INITIALIZED)
+                && (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED
+                        || stateBuffer[1] != TransientStateMachine.STATE_PIN_LOCKED)) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
 
@@ -420,7 +425,7 @@ public class CommandProcessor {
 
     private short setPIN(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if (ramBuffer[0] != AppletStateMachine.STATE_ATTESTED || ramBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
+        if (stateBuffer[0] != AppletStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P1 and P2 are 0
@@ -452,7 +457,7 @@ public class CommandProcessor {
         boolean pinVerified = false;
         byte triesRemaining = 0;
         // Check FSM states
-        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
+        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P1 and P2 are 0
@@ -498,7 +503,7 @@ public class CommandProcessor {
 
     private short changePIN(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P1 and P2 are 0
@@ -526,7 +531,7 @@ public class CommandProcessor {
 
     private short setSeed(byte[] buffer) {
         // Check FSM states
-        if (ramBuffer[0] != AppletStateMachine.STATE_ATTESTED || ramBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
+        if (stateBuffer[0] != AppletStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check PIN is set (meaning PIN value has been put in transient memory)
@@ -546,7 +551,7 @@ public class CommandProcessor {
     }
 
     private short restoreSeed(byte[] buffer, short dataLength) {
-        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check data length
@@ -568,7 +573,7 @@ public class CommandProcessor {
     }
 
     private short verifySeed(byte[] buffer, short cdatalength) {
-        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         if (cdatalength == 0 || buffer[ISO7816.OFFSET_LC] == 0) {
@@ -590,7 +595,7 @@ public class CommandProcessor {
 
     private short factoryReset(byte[] buffer, short dataLength) {
         // Check FSM states
-        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check data length
@@ -620,7 +625,7 @@ public class CommandProcessor {
 
     private short getData(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] < TransientStateMachine.STATE_AUTHENTICATED) {
+        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] < TransientStateMachine.STATE_AUTHENTICATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check data length
@@ -660,7 +665,7 @@ public class CommandProcessor {
 
     private short setData(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check data length
@@ -696,7 +701,7 @@ public class CommandProcessor {
     }
 
     private short setStatus(byte[] buffer) {
-        if (ramBuffer[0] != AppletStateMachine.STATE_PENDING_TESTS || ramBuffer[1] != TransientStateMachine.STATE_IDLE) {
+        if (stateBuffer[0] != AppletStateMachine.STATE_PENDING_TESTS || stateBuffer[1] != TransientStateMachine.STATE_IDLE) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P1 is 0
@@ -710,7 +715,7 @@ public class CommandProcessor {
         }
 
         // Check P2 == STATE_ATTESTED
-        if (buffer[ISO7816.OFFSET_P2] == AppletStateMachine.STATE_ATTESTED) {
+        if (buffer[ISO7816.OFFSET_P2] == AppletStateMachine.GET_STATUS_STATE_ATTESTED) {
             app.appletFSM.transition(AppletStateMachine.EVENT_FACTORY_TESTS_PASSED);
             app.transientFSM.transition(TransientStateMachine.EVENT_SET_CERTIFICATE_AND_TESTS_PASSED);
         } else {
@@ -723,8 +728,8 @@ public class CommandProcessor {
     private short requestUpgrade(byte[] buffer, short cdatalength) {
         boolean pinVerified = false;
         // Check FSM states
-        if (ramBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || (ramBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED
-                && ramBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED)) {
+        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || (stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED
+                && stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED)) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P1 and P2 are 0

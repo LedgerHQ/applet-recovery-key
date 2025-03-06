@@ -6,11 +6,17 @@ import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 
 public class AppletStateMachine {
+    // Constants for states returned by GET STATUS
+    public static final byte GET_STATUS_STATE_FABRICATION = 0;
+    public static final byte GET_STATUS_STATE_PENDING_TESTS = 1;
+    public static final byte GET_STATUS_STATE_ATTESTED = 2;
+    public static final byte GET_STATUS_STATE_USER_PERSONALIZED = 3;
+
     // Constants for states
-    public static final byte STATE_FABRICATION = 0;
-    public static final byte STATE_PENDING_TESTS = 1;
-    public static final byte STATE_ATTESTED = 2;
-    public static final byte STATE_USER_PERSONALIZED = 3;
+    public static final short STATE_FABRICATION = (short) 0xCB39;
+    public static final short STATE_PENDING_TESTS = (short) 0x7CA0;
+    public static final short STATE_ATTESTED = (short) 0xD593;
+    public static final short STATE_USER_PERSONALIZED = (short) 0xCDED;
 
     // Constants for events
     public static final byte EVENT_SET_CERTIFICATE = 0;
@@ -19,14 +25,14 @@ public class AppletStateMachine {
     public static final byte EVENT_PIN_TRY_LIMIT_EXCEEDED = 3;
     public static final byte EVENT_FACTORY_RESET = 4;
 
-    private byte currentState;
+    private short currentState;
     private FatalError fatalError;
 
     public AppletStateMachine() {
         setCurrentState(STATE_FABRICATION);
     }
 
-    private boolean isValidState(byte state) {
+    private boolean isValidState(short state) {
         switch (state) {
         case STATE_FABRICATION:
         case STATE_PENDING_TESTS:
@@ -38,7 +44,7 @@ public class AppletStateMachine {
         }
     }
 
-    private void setCurrentState(byte newState) {
+    private void setCurrentState(short newState) {
         JCSystem.beginTransaction();
         try {
             if (!isValidState(newState)) {
@@ -54,7 +60,7 @@ public class AppletStateMachine {
     }
 
     public void transition(byte event) {
-        byte newState = currentState;
+        short newState = currentState;
 
         switch (currentState) {
         case STATE_FABRICATION:
@@ -87,11 +93,27 @@ public class AppletStateMachine {
         }
     }
 
-    public byte getCurrentState() {
+    public short getCurrentState() {
         if (!isValidState(currentState)) {
             throwFatalError();
         }
         return currentState;
+    }
+
+    public byte getCurrentStateForGetStatus() {
+        switch (currentState) {
+        case STATE_FABRICATION:
+            return GET_STATUS_STATE_FABRICATION;
+        case STATE_PENDING_TESTS:
+            return GET_STATUS_STATE_PENDING_TESTS;
+        case STATE_ATTESTED:
+            return GET_STATUS_STATE_ATTESTED;
+        case STATE_USER_PERSONALIZED:
+            return GET_STATUS_STATE_USER_PERSONALIZED;
+        default:
+            throwFatalError();
+            return -1;
+        }
     }
 
     public void setFatalError(FatalError fatalError) {

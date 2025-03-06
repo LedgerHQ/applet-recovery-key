@@ -265,6 +265,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         seedManager.setFatalError(fatalError);
         appletFSM.setFatalError(fatalError);
         transientFSM.setFatalError(fatalError);
+        commandProcessor.setFatalError(fatalError);
         fatalError.setInitDone();
     }
 

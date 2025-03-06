@@ -206,7 +206,7 @@ TEST_CATEGORY_DESCRIPTIONS = {
         "commands",
         "request_upgrade",
     ): (
-        "REQUEST UGPRADE Command",
+        "REQUEST UPGRADE Command",
         "Tests that verify the behavior of the REQUEST UPGRADE command",
     ),
 }

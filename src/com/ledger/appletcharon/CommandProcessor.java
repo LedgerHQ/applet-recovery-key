@@ -37,6 +37,7 @@ import static com.ledger.appletcharon.Constants.P1_VALIDATE_EPHEMERAL_CERTIFICAT
 import static com.ledger.appletcharon.Constants.P1_VALIDATE_STATIC_CERTIFICATE;
 import static com.ledger.appletcharon.Constants.SN_LENGTH;
 import static com.ledger.appletcharon.Constants.SW_AUTHENTICATION_BLOCKED;
+import static com.ledger.appletcharon.Constants.SW_FATAL_ERROR_DURING_INIT;
 import static com.ledger.appletcharon.Constants.SW_INCORRECT_PARAMETERS;
 import static com.ledger.appletcharon.Constants.SW_INCORRECT_SCP_LEDGER;
 import static com.ledger.appletcharon.Constants.SW_MISSING_SCP_LEDGER;
@@ -61,11 +62,24 @@ public class CommandProcessor {
     private final AppletCharon app;
     private final byte[] ramBuffer;
     private final short[] stateBuffer;
+    private FatalError fatalError;
 
     public CommandProcessor(AppletCharon applet, byte[] ramBuffer, short[] stateBuffer) {
         this.app = applet;
         this.ramBuffer = ramBuffer;
         this.stateBuffer = stateBuffer;
+    }
+
+    public void setFatalError(FatalError fatalError) {
+        this.fatalError = fatalError;
+    }
+
+    private void throwFatalError() {
+        if (fatalError != null) {
+            fatalError.throwIt();
+        } else {
+            ISOException.throwIt(SW_FATAL_ERROR_DURING_INIT);
+        }
     }
 
     private short getStatus(byte[] buffer) {
@@ -495,6 +509,10 @@ public class CommandProcessor {
                 ISOException.throwIt((short) (SW_PIN_COUNTER_CHANGED + triesRemaining));
             }
         } else {
+            // Perform another PIN verification to mitigate attack vectors.
+            if (!app.pinManager.verifyPIN(ramBuffer)) {
+                throwFatalError();
+            }
             // Set FSM state
             app.transientFSM.transition(TransientStateMachine.EVENT_PIN_VERIFIED);
         }

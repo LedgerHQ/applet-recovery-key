@@ -138,6 +138,10 @@ def test_fsm_pending_unauthorized_cmds(client):
         client.factory_reset()
     assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
 
+    with pytest.raises(AssertionError) as e:
+        client.request_upgrade(pin_digits)
+    assert str(e.value) == ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED
+
 
 @pytest.mark.description("'SET STATUS' is supported and should return 0x9000")
 @pytest.mark.test_spec("CHA_STATE_PEN_OK_02")

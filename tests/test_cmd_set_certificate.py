@@ -31,7 +31,10 @@ def install_applet():
     sender = GPCommandSender(backend, ENC_KEY, MAC_KEY)
     manager = CardManager(sender)
     loader = AppletLoader(sender, manager)
-    loader.install_applet(CAP_FILE, install_params=INSTALL_PARAMS)
+    sender.send_select()
+    sender.open_secure_channel(plain=True)
+    loader.install_applet(CAP_FILE)
+    loader.store_serial_number(CAP_FILE, serial_number=INSTALL_PARAMS)
     backend.disconnect()
 
 
@@ -141,7 +144,7 @@ def test_cmd_set_certificate_failed_signature_verif(sender, client):
 @pytest.mark.commands("set_certificate")
 def test_cmd_set_certificate_wrong_card_serial(sender, client):
     configure_applet(client)
-    wrong_serial_number = b'\xFF\xFF\xFF\xFF'
+    wrong_serial_number = b"\xff\xff\xff\xff"
     certificate, _ = client.generate_card_static_certificate(
         wrong_serial_number, client.card_public_key, unhexlify(TEST_AUTH_PRIV_KEY)
     )

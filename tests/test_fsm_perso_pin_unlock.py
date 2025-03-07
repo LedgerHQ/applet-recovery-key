@@ -90,7 +90,10 @@ def test_fsm_perso_pin_unlock_get_data(client):
 @pytest.mark.state_machine("perso_pin_unlock")
 def test_fsm_perso_pin_unlock_restore_seed(client):
     configure_client_and_check_state(client)
-    client.restore_seed()
+    restored_seed_len, restored_seed = client.restore_seed()
+    # Assert that the seed restored is the same as the one we set
+    assert restored_seed_len == SEED_LEN
+    assert restored_seed == TEST_SEED
 
 
 @pytest.mark.description("'VERIFY SEED' is supported and should return 0x9000")
@@ -120,6 +123,15 @@ def test_fsm_perso_pin_unlock_factory_reset(client):
     pin_digits = bytes([0x04, 0x03, 0x02, 0x01])
     configure_client_and_check_state(client, pin_digits)
     client.factory_reset()
+
+
+@pytest.mark.description("'REQUEST UPGRADE' is supported and should return 0x9000")
+@pytest.mark.test_spec("CHA_STATE_UP_MGMT_OK_08")
+@pytest.mark.state_machine("perso_pin_unlock")
+def test_fsm_perso_pin_unlock_request_upgrade(client):
+    configure_client_and_check_state(client)
+    pin_digits = bytes([0x01, 0x02, 0x03, 0x04])
+    client.request_upgrade(pin_digits)
 
 
 @pytest.mark.description("Unauthorized commands should be rejected with 0x6985")

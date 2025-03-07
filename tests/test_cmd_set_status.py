@@ -30,7 +30,10 @@ def install_applet():
     sender = GPCommandSender(backend, ENC_KEY, MAC_KEY)
     manager = CardManager(sender)
     loader = AppletLoader(sender, manager)
-    loader.install_applet(CAP_FILE, install_params=INSTALL_PARAMS)
+    sender.send_select()
+    sender.open_secure_channel(plain=True)
+    loader.install_applet(CAP_FILE)
+    loader.store_serial_number(CAP_FILE, serial_number=INSTALL_PARAMS)
     backend.disconnect()
 
 

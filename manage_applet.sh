@@ -18,6 +18,7 @@ show_help() {
     echo "  -c, --clean                    Clean build artifacts"
     echo "  -p, --path                     Set dependencies path (for local generation only)"
     echo "  -t, --tests GH_USER GH_TOKEN   Run functional tests (requires GitHub credentials if in docker with -d, --docker)" 
+    echo "  -o, --output-dir DIR           Set output directory for generated CAP file (default: ./deliverables/applet-charon)"
     echo "  -h, --help                     Show this help message"
     echo ""
     echo "Without any options, the script will generate the CAP file locally with default AID and version."
@@ -40,6 +41,7 @@ update_vars() {
     VERSION="1.0"
     GP_API_URL="https://globalplatform.org/wp-content/themes/globalplatform/ajax/file-download.php?f=https://globalplatform.org/wp-content/uploads/2019/07/GlobalPlatform_Card_API-org.globalplatform-v1.7.1.zip"
     JAVA_HOME="/usr/java/jdk-17-oracle-x64"
+    OUTPUT_DIR="./deliverables/applet-charon"
 }
 
 export JAVA_HOME
@@ -172,7 +174,7 @@ setup_docker_and_generate_cap() {
     fi
     
     yellow "Generate cap in container..."
-    run_in_docker "$(declare -f check_dependencies) && $(declare -f generate_cap) && generate_cap true $USER_AID $USER_VERSION" "Build in container failed"
+    run_in_docker "$(declare -f check_dependencies) && $(declare -f generate_cap) && generate_cap true $USER_AID $USER_VERSION $USER_OUTPUT_DIR" "Build in container failed"
 }
 
 # Format from AABBCCDD to 0xAA:0xBB:0xCC:0xDD with sed
@@ -185,6 +187,7 @@ generate_cap() {
     local inside_docker=$1
     local user_aid=$2
     local user_version=$3
+    local user_output_dir=$4
     if [ "$inside_docker" = true ]; then
         DEPS_PATH=$HOME
         update_vars
@@ -196,6 +199,10 @@ generate_cap() {
 
     if [ -n "$user_version" ]; then
         VERSION=$user_version
+    fi
+
+    if [ -n "$user_output_dir" ]; then
+        OUTPUT_DIR=$user_output_dir
     fi
 
     check_dependencies
@@ -213,7 +220,7 @@ generate_cap() {
     fi
 
     yellow "Creating deliverables directory if it doesn't exist..."
-    mkdir -p ./deliverables/applet-charon
+    mkdir -p $OUTPUT_DIR
 
     FORMATTED_AID=$(format_aid_string $AID)
 
@@ -223,7 +230,7 @@ generate_cap() {
         -exportpath $GP_API_PATH/1.5/exports:$UPGRADE_API_PATH/exports \
         -applet $FORMATTED_AID com.ledger.appletcharon.AppletCharon \
         -out CAP JCA EXP \
-        -d ./deliverables/applet-charon \
+        -d $OUTPUT_DIR \
         -debug \
         -target 3.0.5 \
         com.ledger.appletcharon $FORMATTED_AID:0x00 $VERSION; then
@@ -374,6 +381,15 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        -o|--output-dir)
+            if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+                USER_OUTPUT_DIR=$2
+                shift 2
+            else
+                red "Error: -o|--output-dir requires a valid directory argument."
+                exit 1
+            fi
+            ;;
         -h|--help)
             show_help
             ;;
@@ -399,6 +415,6 @@ else
     if [ "$TESTS" = true ]; then
         run_tests false
     else
-        generate_cap false $USER_AID $USER_VERSION
+        generate_cap false $USER_AID $USER_VERSION $USER_OUTPUT_DIR
     fi
 fi

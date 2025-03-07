@@ -40,6 +40,8 @@ import static com.ledger.appletcharon.Constants.TAG_KEY_PARAM_LENGTH;
 import static com.ledger.appletcharon.Constants.TAG_KEY_TYPE;
 import static com.ledger.appletcharon.Constants.TAG_KEY_USAGE;
 import static com.ledger.appletcharon.Constants.TAG_KEY_VERSION;
+import static com.ledger.appletcharon.Constants.UPGRADE_AUTHORIZATION_DENIED;
+import static com.ledger.appletcharon.Constants.UPGRADE_AUTHORIZATION_GRANTED;
 
 import org.globalplatform.Application;
 import org.globalplatform.GPSystem;
@@ -75,7 +77,9 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
 
     // PIN management
     protected PINManager pinManager;
-    protected boolean[] isPinVerifiedForUpgrade;
+
+    // Upgrade authorization state
+    protected short[] upgradeAuthorizationState;
 
     // Seed management
     protected SeedManager seedManager;
@@ -105,6 +109,9 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     // RAM buffer
     protected byte ramBuffer[];
 
+    // FSM state buffer
+    protected short[] stateBuffer;
+
     // Command processor
     private CommandProcessor commandProcessor;
 
@@ -112,14 +119,17 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
 
     @Override
     public Element onSave() {
-        if (isPinVerifiedForUpgrade[0]) {
-            return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 1, (short) 7).write(serialNumber)
-                    .write(PINManager.save(this.pinManager)).write(SeedManager.save(this.seedManager))
-                    .write(certificatePrivateKey).write(certificatePublicKey).write(CertificatePKI.save(this.cardCertificatePKI))
-                    .write(this.cardNameLength).write(this.cardName);
-        } else {
+        // If the Lifecycle FSM state is "user personalized" (PIN and seed set) but the
+        // upgrade authorization is not granted then the applet cannot be upgraded
+        if (appletFSM.getCurrentState() == AppletStateMachine.STATE_USER_PERSONALIZED
+                && upgradeAuthorizationState[0] != UPGRADE_AUTHORIZATION_GRANTED) {
             ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
             return null;
+        } else {
+            return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 1, (short) 7).write(serialNumber)
+                    .write(PINManager.save(this.pinManager)).write(SeedManager.save(this.seedManager)).write(certificatePrivateKey)
+                    .write(certificatePublicKey).write(CertificatePKI.save(this.cardCertificatePKI)).write(this.cardNameLength)
+                    .write(this.cardName);
         }
     }
 
@@ -158,7 +168,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     @Override
     public void onConsolidate() {
         seedManager.setCryptoUtil(crypto);
-        
+
         if (cardCertificatePKI.isCertificateSet()) {
             appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
             appletFSM.transition(AppletStateMachine.EVENT_FACTORY_TESTS_PASSED);
@@ -177,6 +187,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     @Override
     public boolean select() {
         secureChannel = null;
+        upgradeAuthorizationState[0] = UPGRADE_AUTHORIZATION_DENIED;
         transientFSM.setOnSelectState();
         // Clear PIN if personalization was not completed in the previous session
         // (PIN was set but not the seed)
@@ -228,12 +239,13 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         issuerKey = (ECPrivateKey) KeyBuilder.buildKey(KeyBuilder.TYPE_EC_FP_PRIVATE, crypto.getCurve().getCurveLength(), false);
         crypto.getCurve().setCurveParameters(issuerKey);
         ramBuffer = JCSystem.makeTransientByteArray(RAM_BUFFER_SIZE, JCSystem.CLEAR_ON_DESELECT);
+        stateBuffer = JCSystem.makeTransientShortArray((short) 2, JCSystem.CLEAR_ON_DESELECT);
         hwSerialNumber = JCSystem.makeTransientByteArray(HW_SN_LENGTH, JCSystem.CLEAR_ON_DESELECT);
         hwStaticCertificatePublicKey = JCSystem.makeTransientByteArray(MAX_HW_PUBLIC_KEY_LENGTH, JCSystem.CLEAR_ON_DESELECT);
         hwStaticCertificatePublicKeyLength = JCSystem.makeTransientShortArray((short) 1, JCSystem.CLEAR_ON_DESELECT);
         cardName = new byte[MAX_CARD_NAME_LENGTH];
-        isPinVerifiedForUpgrade = JCSystem.makeTransientBooleanArray((short) 1, JCSystem.CLEAR_ON_RESET);
-        commandProcessor = new CommandProcessor(this, ramBuffer);
+        upgradeAuthorizationState = JCSystem.makeTransientShortArray((short) 1, JCSystem.CLEAR_ON_RESET);
+        commandProcessor = new CommandProcessor(this, ramBuffer, stateBuffer);
         fatalError = new FatalError(this);
         serialNumber = new byte[SN_LENGTH];
 
@@ -253,6 +265,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         seedManager.setFatalError(fatalError);
         appletFSM.setFatalError(fatalError);
         transientFSM.setFatalError(fatalError);
+        commandProcessor.setFatalError(fatalError);
         fatalError.setInitDone();
     }
 
@@ -260,10 +273,10 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         try {
             // Reset card name length
             cardNameLength = 0;
-            // Reset PIN
-            pinManager.resetPINOnFatalError();
             // Reset seed
             seedManager.clearSeedOnFatalError();
+            // Reset PIN
+            pinManager.resetPINOnFatalError();
             // Reset secure channel
             secureChannel = null;
         } catch (Exception e) {
@@ -335,8 +348,8 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         short dgi;
 
         // Get current persistent and transient states
-        byte pState = appletFSM.getCurrentState();
-        byte tState = transientFSM.getCurrentState();
+        short pState = appletFSM.getCurrentState();
+        short tState = transientFSM.getCurrentState();
 
         // Check FSM states
         if (pState != AppletStateMachine.STATE_FABRICATION || tState != TransientStateMachine.STATE_IDLE) {
@@ -423,7 +436,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
                 switch (tlvTag) {
                 case TAG_KEY_USAGE:
                     if ((baBuffer[(short) (dataOffset + 2)] != KEY_USAGE_SIGNATURE)
-                    && (baBuffer[(short) (dataOffset + 2)] != KEY_USAGE_VERIFICATION)) {
+                            && (baBuffer[(short) (dataOffset + 2)] != KEY_USAGE_VERIFICATION)) {
                         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
                         return;
                     }
@@ -431,7 +444,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
 
                 case TAG_KEY_TYPE:
                     if ((baBuffer[(short) (dataOffset + 2)] != KEY_TYPE_PRIVATE_ECC)
-                    && (baBuffer[(short) (dataOffset + 2)] != KEY_TYPE_PUBLIC_ECC)) {
+                            && (baBuffer[(short) (dataOffset + 2)] != KEY_TYPE_PUBLIC_ECC)) {
                         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
                         return;
                     }
@@ -439,7 +452,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
 
                 case TAG_KEY_LENGTH:
                     if ((baBuffer[(short) (dataOffset + 2)] != CryptoUtil.SECP256K1_PRIVATE_KEY_LEN)
-                    && (baBuffer[(short) (dataOffset + 2)] != CryptoUtil.SECP256K1_PUBLIC_KEY_LEN)) {
+                            && (baBuffer[(short) (dataOffset + 2)] != CryptoUtil.SECP256K1_PUBLIC_KEY_LEN)) {
                         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
                         return;
                     }
@@ -453,8 +466,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
                     break;
 
                 case TAG_KEY_VERSION:
-                    if ((baBuffer[(short) (dataOffset + 2)] != KEY_VERSION_01)
-                        && (baBuffer[(short) (dataOffset + 2)] != KEY_VERSION_11)) {
+                    if ((baBuffer[(short) (dataOffset + 2)] != KEY_VERSION_01) && (baBuffer[(short) (dataOffset + 2)] != KEY_VERSION_11)) {
                         ISOException.throwIt(ISO7816.SW_WRONG_DATA);
                         return;
                     }
@@ -543,8 +555,8 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         }
 
         // Get current persistent state
-        ramBuffer[0] = appletFSM.getCurrentState();
-        ramBuffer[1] = transientFSM.getCurrentState();
+        stateBuffer[0] = appletFSM.getCurrentState();
+        stateBuffer[1] = transientFSM.getCurrentState();
 
         cdatalength = commandProcessor.processCommand(buffer, cdatalength);
 

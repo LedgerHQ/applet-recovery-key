@@ -17,6 +17,7 @@ import javacard.security.KeyBuilder;
 import javacard.security.MessageDigest;
 import javacard.security.RandomData;
 import javacard.security.Signature;
+import javacardx.crypto.Cipher;
 
 public class SeedManager {
 
@@ -26,18 +27,19 @@ public class SeedManager {
     private static final short SEED_LENGTH_18_WORDS = 24;
     protected static final short MAX_SEED_LENGTH = 32; // 256 bits = 32 bytes for 24 words
     private static final byte[] BITCOIN_SEED = { 'B', 'i', 't', 'c', 'o', 'i', 'n', ' ', 's', 'e', 'e', 'd' };
+    private static final byte[] SEED_CHECK_MSG = { 'S', 'e', 'c', 'u', 'r', 'e', ' ', 'L', 'e', 'd', 'g', 'e', 'r', ' ', 'K', 'e', 'y' };
     private static final int DERIVATION_PATH_INDEX_1 = 0x80000000;
     private static final int DERIVATION_PATH_INDEX_2 = 0x82000000;
     private static final int DERIVATION_PATH_INDEX_3 = 0x80000001;
     private static final byte DERIVATION_KEY_LENGTH = 16;
-    private static final byte SHA256_LENGTH = 32;
+    private static final byte CMAC128_LENGTH = 16;
 
     protected AESKey seedKey;
     private HMACKey hmacKey;
-    private MessageDigest msgDigestSHA256;
-    private byte[] seedSHA256;
     private byte seedLength;
+    private byte[] seedCheckCMAC128;
     private Signature hmacSha512;
+    private Signature aesCMAC128;
     private CryptoUtil crypto;
     private RandomData randomData;
     private byte[] tempBuffer;
@@ -50,13 +52,14 @@ public class SeedManager {
         seedKey = (AESKey) KeyBuilder.buildKey(KeyBuilder.TYPE_AES, KeyBuilder.LENGTH_AES_256, false);
         seedSet = false;
         seedLength = 0;
-        msgDigestSHA256 = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, false);
-        seedSHA256 = new byte[SHA256_LENGTH];
+        seedCheckCMAC128 = new byte[CMAC128_LENGTH];
         hmacKey = (HMACKey) KeyBuilder.buildKey(KeyBuilder.TYPE_HMAC, KeyBuilder.LENGTH_HMAC_SHA_512_BLOCK_128, false);
         hmacSha512 = Signature.getInstance(Signature.ALG_HMAC_SHA_512, false);
+        aesCMAC128 = Signature.getInstance(MessageDigest.ALG_NULL, Signature.SIG_CIPHER_AES_CMAC128, Cipher.PAD_ISO9797_M2, false);
         tempBuffer = JCSystem.makeTransientByteArray((short) 128, JCSystem.CLEAR_ON_DESELECT);
         derivationBuffer = JCSystem.makeTransientByteArray((short) 64, JCSystem.CLEAR_ON_DESELECT);
         randomData = RandomData.getInstance(RandomData.ALG_TRNG);
+
     }
 
     public void setCryptoUtil(CryptoUtil cryptoUtil) {
@@ -64,9 +67,18 @@ public class SeedManager {
     }
 
     private boolean isSeedLengthValid(short length) {
-        return (length == MAX_SEED_LENGTH)
-                || (length == SEED_LENGTH_12_WORDS)
-                || (length == SEED_LENGTH_18_WORDS);
+        return (length == MAX_SEED_LENGTH) || (length == SEED_LENGTH_12_WORDS) || (length == SEED_LENGTH_18_WORDS);
+    }
+
+    /**
+     * Compute AES-CMAC-128 on the input message using an AES key object
+     */
+    private void computeAesCmac128(AESKey key, byte[] msg, short msgOffset, short msgLength, byte[] output, short outputOffset) {
+        // Set AES key
+        aesCMAC128.init(key, Signature.MODE_SIGN);
+
+        // Compute CMAC
+        aesCMAC128.sign(msg, msgOffset, msgLength, output, outputOffset);
     }
 
     protected void setSeed(byte[] seed_data) {
@@ -85,8 +97,8 @@ public class SeedManager {
             // Store the seed as key data
             seedKey.setKey(seed_data, (short) SEED_DATA_OFFSET);
             seedLength = seed_data[SEED_DATA_LENGTH_OFFSET];
-            msgDigestSHA256.reset();
-            msgDigestSHA256.doFinal(seed_data, (short) (SEED_DATA_OFFSET + (MAX_SEED_LENGTH - seedLength)), seedLength, seedSHA256, (short) 0);
+            // Compute the CMAC-128 of the seed check msg using the seed as key.
+            computeAesCmac128(seedKey, SEED_CHECK_MSG, (short) 0, (short) SEED_CHECK_MSG.length, seedCheckCMAC128, (short) 0);
             seedSet = true;
             JCSystem.commitTransaction();
         } catch (CryptoException e) {
@@ -103,11 +115,11 @@ public class SeedManager {
             if (!isSeedLengthValid(seedLength)) {
                 throwFatalError();
             }
-            // Retrieve the stored seed
-            seedKey.getKey(tempBuffer, (short) 0);
-            msgDigestSHA256.reset();
-            msgDigestSHA256.doFinal(tempBuffer, (short) (MAX_SEED_LENGTH - seedLength), seedLength, derivationBuffer, (short) 0);
-            if (Util.arrayCompare(seedSHA256, (short) 0, derivationBuffer, (short) 0, MAX_SEED_LENGTH) != 0) {
+            // Compute the CMAC-128 of the seed check msg using the seed as key in
+            // tempBuffer
+            computeAesCmac128(seedKey, SEED_CHECK_MSG, (short) 0, (short) SEED_CHECK_MSG.length, tempBuffer, (short) 0);
+            // Compare the computed CMAC-128 with the stored CMAC-128
+            if (Util.arrayCompare(seedCheckCMAC128, (short) 0, tempBuffer, (short) 0, CMAC128_LENGTH) != 0) {
                 throwFatalError();
             }
         } catch (Exception e) {
@@ -238,8 +250,8 @@ public class SeedManager {
 
         // Step 1: Generate master key from seed
         seedKey.getKey(tempBuffer, (short) 0);
-        computeHmacSha512(BITCOIN_SEED, (short) 0, (short) BITCOIN_SEED.length, tempBuffer, (short) (MAX_SEED_LENGTH - seedLength), seedLength, derivationBuffer,
-                (short) 0);
+        computeHmacSha512(BITCOIN_SEED, (short) 0, (short) BITCOIN_SEED.length, tempBuffer, (short) (MAX_SEED_LENGTH - seedLength),
+                seedLength, derivationBuffer, (short) 0);
 
         // Now derivationBuffer contains:
         // - [0-31]: master private key (mk)
@@ -270,7 +282,7 @@ public class SeedManager {
 
     static Element save(SeedManager seedManager) {
         return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 2, (short) 2).write(seedManager.seedSet)
-                .write(seedManager.seedSHA256).write(seedManager.seedKey).write(seedManager.seedLength);
+                .write(seedManager.seedCheckCMAC128).write(seedManager.seedKey).write(seedManager.seedLength);
     }
 
     static SeedManager restore(Element element) {
@@ -279,7 +291,7 @@ public class SeedManager {
         }
         SeedManager seedManager = new SeedManager();
         seedManager.seedSet = element.readBoolean();
-        seedManager.seedSHA256 = (byte[]) element.readObject();
+        seedManager.seedCheckCMAC128 = (byte[]) element.readObject();
         seedManager.seedKey = (AESKey) element.readObject();
         seedManager.seedLength = (byte) element.readByte();
         return seedManager;

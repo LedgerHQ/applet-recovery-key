@@ -4,7 +4,7 @@ import pytest
 import functools
 from io import StringIO
 from typing import Generator, Tuple
-from ledger_pluto.client import CharonClient, CapsuleAlgorithm
+from ledger_pluto.client import RecoveryKeyClient, CapsuleAlgorithm
 from ledger_pluto.command_sender import GPCommandSender
 from ledger_pluto.applet_loader import AppletLoader
 from ledger_pluto.card_manager import CardManager
@@ -247,9 +247,9 @@ def sender(request) -> Generator[GPCommandSender, None, None]:
 
 
 @pytest.fixture(scope="function")
-def client(sender) -> Generator[CharonClient, None, None]:
+def client(sender) -> Generator[RecoveryKeyClient, None, None]:
     # Create the client object
-    yield CharonClient(sender, capsule_algo=CapsuleAlgorithm.AES_CBC_HMAC)
+    yield RecoveryKeyClient(sender, capsule_algo=CapsuleAlgorithm.AES_CBC_HMAC)
 
 
 @pytest.fixture(scope="function")

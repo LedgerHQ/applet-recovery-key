@@ -2,7 +2,7 @@ import logging
 import pytest
 import os
 from ledger_pluto.client import CLA, InsType, P1, P2
-from ledger_pluto.client import CharonClient, CapsuleAlgorithm
+from ledger_pluto.client import RecoveryKeyClient, CapsuleAlgorithm
 from ledger_pluto.command_sender import GPCommandSender
 from ledger_pluto.backend.jrcp_backend import JRCPBackend
 from .conftest import (
@@ -43,7 +43,7 @@ def configure_applet():
     sender = GPCommandSender(backend, ENC_KEY, MAC_KEY)
     sender.send_select(AID)
     sender.open_secure_channel()
-    client = CharonClient(sender, capsule_algo=CapsuleAlgorithm.AES_CBC_HMAC)
+    client = RecoveryKeyClient(sender, capsule_algo=CapsuleAlgorithm.AES_CBC_HMAC)
     client.set_issuer_key(AID, bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
     client.get_public_key_and_verify()
     client.set_certificate(bytearray.fromhex(TEST_AUTH_PRIV_KEY))

@@ -15,8 +15,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-local = [ "ledger-pluto @ git+ssh://git@github.com/LedgerHQ/ledger-pluto.git@main" ]
-github-actions = [ "ledger-pluto @ git+https://${GH_USER}:${GH_TOKEN}@github.com/LedgerHQ/ledger-pluto.git@main" ]
+local = [ "ledger-pluto @ git+ssh://git@github.com/LedgerHQ/ledger-pluto.git@remove-charon-naming" ]
+github-actions = [ "ledger-pluto @ git+https://${GH_USER}:${GH_TOKEN}@github.com/LedgerHQ/ledger-pluto.git@remove-charon-naming" ]
 
 [tool.pdm]
 distribution = false

@@ -4,7 +4,7 @@
  */
 
 
-package com.ledger.appletcharon;
+package com.ledger.appletrecoverykey;
 
 import javacard.security.KeyBuilder;
 

@@ -1,4 +1,4 @@
-package com.ledger.appletcharon;
+package com.ledger.appletrecoverykey;
 
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;

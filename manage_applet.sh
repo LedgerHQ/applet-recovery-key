@@ -18,7 +18,7 @@ show_help() {
     echo "  -c, --clean                    Clean build artifacts"
     echo "  -p, --path                     Set dependencies path (for local generation only)"
     echo "  -t, --tests GH_USER GH_TOKEN   Run functional tests (requires GitHub credentials if in docker with -d, --docker)" 
-    echo "  -o, --output-dir DIR           Set output directory for generated CAP file (default: ./deliverables/applet-charon)"
+    echo "  -o, --output-dir DIR           Set output directory for generated CAP file (default: ./deliverables/applet-recovery-key)"
     echo "  -h, --help                     Show this help message"
     echo ""
     echo "Without any options, the script will generate the CAP file locally with default AID and version."
@@ -41,7 +41,7 @@ update_vars() {
     VERSION="1.0"
     GP_API_URL="https://globalplatform.org/wp-content/themes/globalplatform/ajax/file-download.php?f=https://globalplatform.org/wp-content/uploads/2019/07/GlobalPlatform_Card_API-org.globalplatform-v1.7.1.zip"
     JAVA_HOME="/usr/java/jdk-17-oracle-x64"
-    OUTPUT_DIR="./deliverables/applet-charon"
+    OUTPUT_DIR="./deliverables/applet-recovery-key"
 }
 
 export JAVA_HOME
@@ -214,7 +214,7 @@ generate_cap() {
     if ! $JAVA_HOME/bin/javac -source 7 -target 7 -g \
         -cp $JCAPI_PATH \
         -cp "$JCAPI_PATH:$JCAPI_ANNOTATIONS_PATH:$GP_API_PATH/1.5/gpapi-globalplatform.jar:$UPGRADE_API_PATH/gpapi-upgrade.jar" \
-        -d bin src/com/ledger/appletcharon/*.java; then
+        -d bin src/com/ledger/appletrecoverykey/*.java; then
         red "Error: Java compilation failed"
         exit 1
     fi
@@ -228,12 +228,12 @@ generate_cap() {
     if ! $JCDK_PATH/bin/converter.sh -i \
         -classdir ./bin \
         -exportpath $GP_API_PATH/1.5/exports:$UPGRADE_API_PATH/exports \
-        -applet $FORMATTED_AID com.ledger.appletcharon.AppletCharon \
+        -applet $FORMATTED_AID com.ledger.appletrecoverykey.AppletRecoveryKey \
         -out CAP JCA EXP \
         -d $OUTPUT_DIR \
         -debug \
         -target 3.0.5 \
-        com.ledger.appletcharon $FORMATTED_AID:0x00 $VERSION; then
+        com.ledger.appletrecoverykey $FORMATTED_AID:0x00 $VERSION; then
         red "Error: CAP conversion failed"
         exit 1
     fi

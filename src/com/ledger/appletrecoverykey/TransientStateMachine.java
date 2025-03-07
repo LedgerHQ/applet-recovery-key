@@ -1,6 +1,6 @@
-package com.ledger.appletcharon;
+package com.ledger.appletrecoverykey;
 
-import static com.ledger.appletcharon.Constants.SW_FATAL_ERROR_DURING_INIT;
+import static com.ledger.appletrecoverykey.Constants.SW_FATAL_ERROR_DURING_INIT;
 
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;

@@ -1,6 +1,6 @@
-# Ledger Seed Backup Smart Card Applet
+# Ledger Recovery Key Applet
 
-Javacard applet of the Charon smart card project. Allows to perform a seed backup from wallet to card and restore it later.
+Javacard applet of the Ledger Recovery Key smart card. Allows to perform a secure seed backup from wallet to card and restore it later.
 
 ## How to build and test
 
@@ -49,7 +49,7 @@ The easiest way to run the functional tests is to use the `manage_applet.sh` scr
 
 ## `manage_applet.sh` script
 
-The `manage_applet.sh` script assists in building (generating a CAP file), cleaning, and testing the Charon applet, either locally or in a Docker container. It includes options for dependency path customization, AID setting, and running functional tests (requiring GitHub credentials for cloning ledger-pluto)
+The `manage_applet.sh` script assists in building (generating a CAP file), cleaning, and testing the Recovery Key applet, either locally or in a Docker container. It includes options for dependency path customization, AID setting, and running functional tests (requiring GitHub credentials for cloning ledger-pluto)
 
 ### Usage
 

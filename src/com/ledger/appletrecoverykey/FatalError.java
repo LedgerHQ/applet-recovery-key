@@ -1,14 +1,14 @@
-package com.ledger.appletcharon;
+package com.ledger.appletrecoverykey;
 
-import static com.ledger.appletcharon.Constants.SW_FATAL_ERROR_DURING_INIT;
+import static com.ledger.appletrecoverykey.Constants.SW_FATAL_ERROR_DURING_INIT;
 
 import javacard.framework.ISOException;
 
 public class FatalError {
-    private AppletCharon applet;
+    private AppletRecoveryKey applet;
     private boolean initDone;
 
-    public FatalError(AppletCharon applet) {
+    public FatalError(AppletRecoveryKey applet) {
         this.applet = applet;
         initDone = false;
     }

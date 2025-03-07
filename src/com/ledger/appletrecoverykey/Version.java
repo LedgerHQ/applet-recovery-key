@@ -1,4 +1,4 @@
-package com.ledger.appletcharon;
+package com.ledger.appletrecoverykey;
 
 public final class Version {
     protected static final byte APPLET_MAJOR_VERSION = (byte) 0x01;

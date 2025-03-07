@@ -27,10 +27,8 @@ TEST_ISSUER_PRIV_KEY = (
     "fbe0ac62cef7e2b132a1e7aed49bb2fae233bf294901dfdf45ba52d5b9382978"
 )
 TEST_AUTH_PRIV_KEY = "7a3f314bdecdf6e7c98b0b4c0dd7e7d0c0e166be8ee7cf4c7eb991a98fbab07f"
-CAP_FILE = (
-    "deliverables/applet-charon/com/ledger/appletcharon/javacard/appletcharon.cap"
-)
-CAP_FILE_UPGRADE = "upgrade/com/ledger/appletcharon/javacard/appletcharon.cap"
+CAP_FILE = "deliverables/applet-recovery-key/com/ledger/appletrecoverykey/javacard/appletrecoverykey.cap"
+CAP_FILE_UPGRADE = "upgrade/com/ledger/appletrecoverykey/javacard/appletrecoverykey.cap"
 INSTALL_PARAMS = "DEADBEEF"
 ASSERT_MSG_CONDITION_OF_USE_NOT_SATISFIED = "Status Word: 0x6985"
 SEED_LEN = 32

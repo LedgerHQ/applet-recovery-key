@@ -37,11 +37,11 @@ public class TransientStateMachine {
     public static final byte EVENT_FACTORY_RESET = 5;
 
     private short currentState;
-    private AppletStateMachine appletStateMachine;
+    private LifeCycleStateMachine LifeCycleStateMachine;
     private FatalError fatalError;
 
-    public TransientStateMachine(AppletStateMachine appletStateMachine) {
-        this.appletStateMachine = appletStateMachine;
+    public TransientStateMachine(LifeCycleStateMachine LifeCycleStateMachine) {
+        this.LifeCycleStateMachine = LifeCycleStateMachine;
         setCurrentState(STATE_IDLE);
     }
 
@@ -75,11 +75,11 @@ public class TransientStateMachine {
 
     public void setOnSelectState() {
         short newState;
-        short appletState = appletStateMachine.getCurrentState();
+        short appletState = LifeCycleStateMachine.getCurrentState();
 
-        if (appletState == AppletStateMachine.STATE_FABRICATION || appletState == AppletStateMachine.STATE_PENDING_TESTS) {
+        if (appletState == LifeCycleStateMachine.STATE_FABRICATION || appletState == LifeCycleStateMachine.STATE_PENDING_TESTS) {
             newState = STATE_IDLE;
-        } else if (appletState == AppletStateMachine.STATE_ATTESTED) {
+        } else if (appletState == LifeCycleStateMachine.STATE_ATTESTED) {
             newState = STATE_INITIALIZED;
         } else {
             newState = STATE_PIN_LOCKED;
@@ -120,7 +120,7 @@ public class TransientStateMachine {
 
         case STATE_PIN_UNLOCKED:
             if (event == EVENT_APPLET_DESELECTED) {
-                if (appletStateMachine.getCurrentState() == AppletStateMachine.STATE_USER_PERSONALIZED) {
+                if (LifeCycleStateMachine.getCurrentState() == LifeCycleStateMachine.STATE_USER_PERSONALIZED) {
                     newState = STATE_PIN_LOCKED;
                 } else {
                     newState = STATE_INITIALIZED;

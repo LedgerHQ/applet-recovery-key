@@ -103,7 +103,7 @@ public class AppletRecoveryKey extends Applet implements OnUpgradeListener, Appl
     protected EphemeralCertificate ephemeralCertificate;
 
     // State machines (life cycle and transient)
-    protected AppletStateMachine appletFSM;
+    protected LifeCycleStateMachine lifeCycleFSM;
     protected TransientStateMachine transientFSM;
 
     // RAM buffer
@@ -121,7 +121,7 @@ public class AppletRecoveryKey extends Applet implements OnUpgradeListener, Appl
     public Element onSave() {
         // If the Lifecycle FSM state is "user personalized" (PIN and seed set) but the
         // upgrade authorization is not granted then the applet cannot be upgraded
-        if (appletFSM.getCurrentState() == AppletStateMachine.STATE_USER_PERSONALIZED
+        if (lifeCycleFSM.getCurrentState() == LifeCycleStateMachine.STATE_USER_PERSONALIZED
                 && upgradeAuthorizationState[0] != UPGRADE_AUTHORIZATION_GRANTED) {
             ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
             return null;
@@ -170,11 +170,11 @@ public class AppletRecoveryKey extends Applet implements OnUpgradeListener, Appl
         seedManager.setCryptoUtil(crypto);
 
         if (cardCertificatePKI.isCertificateSet()) {
-            appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
-            appletFSM.transition(AppletStateMachine.EVENT_FACTORY_TESTS_PASSED);
+            lifeCycleFSM.transition(LifeCycleStateMachine.EVENT_SET_CERTIFICATE);
+            lifeCycleFSM.transition(LifeCycleStateMachine.EVENT_FACTORY_TESTS_PASSED);
         }
         if (seedManager.isSeedSet() && pinManager.getPINStatus() == PINManager.PIN_STATUS_ACTIVATED) {
-            appletFSM.transition(AppletStateMachine.EVENT_SET_SEED);
+            lifeCycleFSM.transition(LifeCycleStateMachine.EVENT_SET_SEED);
         }
         transientFSM.setOnSelectState();
         this.enableFatalErrorHandling();
@@ -224,8 +224,8 @@ public class AppletRecoveryKey extends Applet implements OnUpgradeListener, Appl
      */
     protected AppletRecoveryKey(byte[] bArray, short bOffset, byte bLength) {
         // Create the FSM
-        appletFSM = new AppletStateMachine();
-        transientFSM = new TransientStateMachine(appletFSM);
+        lifeCycleFSM = new LifeCycleStateMachine();
+        transientFSM = new TransientStateMachine(lifeCycleFSM);
         secureChannel = null;
         pinManager = new PINManager();
         crypto = new CryptoUtil();
@@ -263,7 +263,7 @@ public class AppletRecoveryKey extends Applet implements OnUpgradeListener, Appl
     private void enableFatalErrorHandling() {
         pinManager.setFatalError(fatalError);
         seedManager.setFatalError(fatalError);
-        appletFSM.setFatalError(fatalError);
+        lifeCycleFSM.setFatalError(fatalError);
         transientFSM.setFatalError(fatalError);
         commandProcessor.setFatalError(fatalError);
         fatalError.setInitDone();
@@ -283,7 +283,7 @@ public class AppletRecoveryKey extends Applet implements OnUpgradeListener, Appl
             // Ignore all other exceptions
         } finally {
             // Reset FSM states (lifecycle : attested, transient : initialized)
-            appletFSM.setStateOnFatalError();
+            lifeCycleFSM.setStateOnFatalError();
             transientFSM.setStateOnFatalError();
             ISOException.throwIt(SW_FATAL_ERROR);
         }
@@ -348,11 +348,11 @@ public class AppletRecoveryKey extends Applet implements OnUpgradeListener, Appl
         short dgi;
 
         // Get current persistent and transient states
-        short pState = appletFSM.getCurrentState();
+        short pState = lifeCycleFSM.getCurrentState();
         short tState = transientFSM.getCurrentState();
 
         // Check FSM states
-        if (pState != AppletStateMachine.STATE_FABRICATION || tState != TransientStateMachine.STATE_IDLE) {
+        if (pState != LifeCycleStateMachine.STATE_FABRICATION || tState != TransientStateMachine.STATE_IDLE) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
 
@@ -555,7 +555,7 @@ public class AppletRecoveryKey extends Applet implements OnUpgradeListener, Appl
         }
 
         // Get current persistent state
-        stateBuffer[0] = appletFSM.getCurrentState();
+        stateBuffer[0] = lifeCycleFSM.getCurrentState();
         stateBuffer[1] = transientFSM.getCurrentState();
 
         cdatalength = commandProcessor.processCommand(buffer, cdatalength);

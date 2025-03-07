@@ -5,7 +5,7 @@ import static com.ledger.appletrecoverykey.Constants.SW_FATAL_ERROR_DURING_INIT;
 import javacard.framework.ISOException;
 import javacard.framework.JCSystem;
 
-public class AppletStateMachine {
+public class LifeCycleStateMachine {
     // Constants for states returned by GET STATUS
     public static final byte GET_STATUS_STATE_FABRICATION = 0;
     public static final byte GET_STATUS_STATE_PENDING_TESTS = 1;
@@ -28,7 +28,7 @@ public class AppletStateMachine {
     private short currentState;
     private FatalError fatalError;
 
-    public AppletStateMachine() {
+    public LifeCycleStateMachine() {
         setCurrentState(STATE_FABRICATION);
     }
 

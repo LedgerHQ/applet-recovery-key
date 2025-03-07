@@ -97,7 +97,7 @@ public class CommandProcessor {
         offset = buildTLVField(buffer, offset, new byte[] { GET_STATUS_APPLET_VERSION_TAG },
                 new byte[] { APPLET_MAJOR_VERSION, APPLET_MINOR_VERSION, APPLET_PATCH_VERSION });
         offset = buildTLVField(buffer, offset, new byte[] { GET_STATUS_APPLET_FSM_STATE_TAG },
-                new byte[] { app.appletFSM.getCurrentStateForGetStatus() });
+                new byte[] { app.lifeCycleFSM.getCurrentStateForGetStatus() });
         offset = buildTLVField(buffer, offset, new byte[] { GET_STATUS_TRANSIENT_FSM_STATE_TAG },
                 new byte[] { app.transientFSM.getCurrentStateForGetStatus() });
         return offset;
@@ -124,7 +124,7 @@ public class CommandProcessor {
      */
     private short getPublicKey(byte[] buffer) {
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_FABRICATION || stateBuffer[1] != TransientStateMachine.STATE_IDLE) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_FABRICATION || stateBuffer[1] != TransientStateMachine.STATE_IDLE) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         if (buffer[ISO7816.OFFSET_P1] != 0 || buffer[ISO7816.OFFSET_P2] != 0) {
@@ -182,7 +182,7 @@ public class CommandProcessor {
      */
     private short setCertificate(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_FABRICATION || stateBuffer[1] != TransientStateMachine.STATE_IDLE) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_FABRICATION || stateBuffer[1] != TransientStateMachine.STATE_IDLE) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P1 and P2 are 0
@@ -210,7 +210,7 @@ public class CommandProcessor {
             ISOException.throwIt(SW_SECURITY_STATUS);
         }
         // Set FSM state
-        app.appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
+        app.lifeCycleFSM.transition(LifeCycleStateMachine.EVENT_SET_CERTIFICATE);
         return 0;
     }
 
@@ -250,8 +250,8 @@ public class CommandProcessor {
      */
     private short getCardCertificate(byte[] buffer) {
         // Check FSM states
-        if ((stateBuffer[0] != AppletStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_INITIALIZED)
-                && (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED
+        if ((stateBuffer[0] != LifeCycleStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_INITIALIZED)
+                && (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED
                         || stateBuffer[1] != TransientStateMachine.STATE_PIN_LOCKED)) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
@@ -306,8 +306,8 @@ public class CommandProcessor {
      */
     private short validateHostCertificate(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if ((stateBuffer[0] != AppletStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_INITIALIZED)
-                && (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED
+        if ((stateBuffer[0] != LifeCycleStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_INITIALIZED)
+                && (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED
                         || stateBuffer[1] != TransientStateMachine.STATE_PIN_LOCKED)) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
@@ -439,7 +439,7 @@ public class CommandProcessor {
 
     private short setPIN(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P1 and P2 are 0
@@ -471,7 +471,7 @@ public class CommandProcessor {
         boolean pinVerified = false;
         byte triesRemaining = 0;
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P1 and P2 are 0
@@ -502,7 +502,7 @@ public class CommandProcessor {
                 // Reset PIN, Seed and FSM
                 app.seedManager.clearSeed();
                 app.pinManager.resetPIN();
-                app.appletFSM.transition(AppletStateMachine.EVENT_PIN_TRY_LIMIT_EXCEEDED);
+                app.lifeCycleFSM.transition(LifeCycleStateMachine.EVENT_PIN_TRY_LIMIT_EXCEEDED);
                 app.transientFSM.transition(TransientStateMachine.EVENT_PIN_TRY_LIMIT_EXCEEDED);
                 ISOException.throwIt(SW_AUTHENTICATION_BLOCKED);
             } else {
@@ -521,7 +521,7 @@ public class CommandProcessor {
 
     private short changePIN(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P1 and P2 are 0
@@ -549,7 +549,7 @@ public class CommandProcessor {
 
     private short setSeed(byte[] buffer) {
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check PIN is set (meaning PIN value has been put in transient memory)
@@ -563,13 +563,13 @@ public class CommandProcessor {
         // Activate PIN
         app.pinManager.activatePIN();
         // Set FSM state
-        app.appletFSM.transition(AppletStateMachine.EVENT_SET_SEED);
+        app.lifeCycleFSM.transition(LifeCycleStateMachine.EVENT_SET_SEED);
         app.transientFSM.transition(TransientStateMachine.EVENT_PIN_VERIFIED);
         return 0;
     }
 
     private short restoreSeed(byte[] buffer, short dataLength) {
-        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check data length
@@ -591,7 +591,7 @@ public class CommandProcessor {
     }
 
     private short verifySeed(byte[] buffer, short cdatalength) {
-        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         if (cdatalength == 0 || buffer[ISO7816.OFFSET_LC] == 0) {
@@ -613,7 +613,7 @@ public class CommandProcessor {
 
     private short factoryReset(byte[] buffer, short dataLength) {
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check data length
@@ -636,14 +636,14 @@ public class CommandProcessor {
         // Reset PIN
         app.pinManager.resetPIN();
         // Reset FSM states
-        app.appletFSM.transition(AppletStateMachine.EVENT_FACTORY_RESET);
+        app.lifeCycleFSM.transition(LifeCycleStateMachine.EVENT_FACTORY_RESET);
         app.transientFSM.transition(TransientStateMachine.EVENT_FACTORY_RESET);
         return 0;
     }
 
     private short getData(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] < TransientStateMachine.STATE_AUTHENTICATED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] < TransientStateMachine.STATE_AUTHENTICATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check data length
@@ -683,7 +683,7 @@ public class CommandProcessor {
 
     private short setData(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check data length
@@ -719,7 +719,7 @@ public class CommandProcessor {
     }
 
     private short setStatus(byte[] buffer) {
-        if (stateBuffer[0] != AppletStateMachine.STATE_PENDING_TESTS || stateBuffer[1] != TransientStateMachine.STATE_IDLE) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_PENDING_TESTS || stateBuffer[1] != TransientStateMachine.STATE_IDLE) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P1 is 0
@@ -733,8 +733,8 @@ public class CommandProcessor {
         }
 
         // Check P2 == STATE_ATTESTED
-        if (buffer[ISO7816.OFFSET_P2] == AppletStateMachine.GET_STATUS_STATE_ATTESTED) {
-            app.appletFSM.transition(AppletStateMachine.EVENT_FACTORY_TESTS_PASSED);
+        if (buffer[ISO7816.OFFSET_P2] == LifeCycleStateMachine.GET_STATUS_STATE_ATTESTED) {
+            app.lifeCycleFSM.transition(LifeCycleStateMachine.EVENT_FACTORY_TESTS_PASSED);
             app.transientFSM.transition(TransientStateMachine.EVENT_SET_CERTIFICATE_AND_TESTS_PASSED);
         } else {
             ISOException.throwIt(SW_WRONG_P1P2);
@@ -746,7 +746,7 @@ public class CommandProcessor {
     private short requestUpgrade(byte[] buffer, short cdatalength) {
         boolean pinVerified = false;
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || (stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED || (stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED
                 && stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED)) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }

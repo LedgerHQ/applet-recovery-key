@@ -1,70 +1,70 @@
-package com.ledger.appletcharon;
+package com.ledger.appletrecoverykey;
 
-import static com.ledger.appletcharon.Constants.APDU_HEADER_SIZE;
-import static com.ledger.appletcharon.Constants.CARD_CERT_ROLE;
-import static com.ledger.appletcharon.Constants.CARD_TARGET_ID;
-import static com.ledger.appletcharon.Constants.CERTIFICATE_TRUSTED_NAME_TAG;
-import static com.ledger.appletcharon.Constants.DATA_CARD_NAME_TAG;
-import static com.ledger.appletcharon.Constants.DATA_PIN_TRY_COUNTER_TAG;
-import static com.ledger.appletcharon.Constants.GET_STATUS_APPLET_FSM_STATE_TAG;
-import static com.ledger.appletcharon.Constants.GET_STATUS_APPLET_VERSION_TAG;
-import static com.ledger.appletcharon.Constants.GET_STATUS_SERIAL_NUMBER_TAG;
-import static com.ledger.appletcharon.Constants.GET_STATUS_TARGET_ID_TAG;
-import static com.ledger.appletcharon.Constants.GET_STATUS_TRANSIENT_FSM_STATE_TAG;
-import static com.ledger.appletcharon.Constants.HW_CERT_ROLE;
-import static com.ledger.appletcharon.Constants.HW_EPH_CERT_ROLE;
-import static com.ledger.appletcharon.Constants.HW_SN_LENGTH;
-import static com.ledger.appletcharon.Constants.INS_FACTORY_RESET;
-import static com.ledger.appletcharon.Constants.INS_GET_CARD_CERTIFICATE;
-import static com.ledger.appletcharon.Constants.INS_GET_DATA;
-import static com.ledger.appletcharon.Constants.INS_GET_PUBLIC_KEY;
-import static com.ledger.appletcharon.Constants.INS_GET_STATUS;
-import static com.ledger.appletcharon.Constants.INS_PIN_CHANGE;
-import static com.ledger.appletcharon.Constants.INS_REQUEST_UPGRADE;
-import static com.ledger.appletcharon.Constants.INS_RESTORE_SEED;
-import static com.ledger.appletcharon.Constants.INS_SET_CERTIFICATE;
-import static com.ledger.appletcharon.Constants.INS_SET_DATA;
-import static com.ledger.appletcharon.Constants.INS_SET_PIN;
-import static com.ledger.appletcharon.Constants.INS_SET_SEED;
-import static com.ledger.appletcharon.Constants.INS_SET_STATUS;
-import static com.ledger.appletcharon.Constants.INS_VALIDATE_HOST_CERTIFICATE;
-import static com.ledger.appletcharon.Constants.INS_VERIFY_PIN;
-import static com.ledger.appletcharon.Constants.INS_VERIFY_SEED;
-import static com.ledger.appletcharon.Constants.MAX_CARD_NAME_LENGTH;
-import static com.ledger.appletcharon.Constants.P1_GET_EPHEMERAL_CERTIFICATE;
-import static com.ledger.appletcharon.Constants.P1_GET_STATIC_CERTIFICATE;
-import static com.ledger.appletcharon.Constants.P1_VALIDATE_EPHEMERAL_CERTIFICATE;
-import static com.ledger.appletcharon.Constants.P1_VALIDATE_STATIC_CERTIFICATE;
-import static com.ledger.appletcharon.Constants.SN_LENGTH;
-import static com.ledger.appletcharon.Constants.SW_AUTHENTICATION_BLOCKED;
-import static com.ledger.appletcharon.Constants.SW_FATAL_ERROR_DURING_INIT;
-import static com.ledger.appletcharon.Constants.SW_INCORRECT_PARAMETERS;
-import static com.ledger.appletcharon.Constants.SW_INCORRECT_SCP_LEDGER;
-import static com.ledger.appletcharon.Constants.SW_MISSING_SCP_LEDGER;
-import static com.ledger.appletcharon.Constants.SW_PIN_COUNTER_CHANGED;
-import static com.ledger.appletcharon.Constants.SW_REFERENCE_DATA_NOT_FOUND;
-import static com.ledger.appletcharon.Constants.SW_SECURITY_STATUS;
-import static com.ledger.appletcharon.Constants.SW_WRONG_LENGTH;
-import static com.ledger.appletcharon.Constants.SW_WRONG_P1P2;
-import static com.ledger.appletcharon.Constants.UPGRADE_AUTHORIZATION_DENIED;
-import static com.ledger.appletcharon.Constants.UPGRADE_AUTHORIZATION_GRANTED;
-import static com.ledger.appletcharon.Utils.buildTLVField;
-import static com.ledger.appletcharon.Utils.parseTLVGetOffset;
-import static com.ledger.appletcharon.Version.APPLET_MAJOR_VERSION;
-import static com.ledger.appletcharon.Version.APPLET_MINOR_VERSION;
-import static com.ledger.appletcharon.Version.APPLET_PATCH_VERSION;
+import static com.ledger.appletrecoverykey.Constants.APDU_HEADER_SIZE;
+import static com.ledger.appletrecoverykey.Constants.CARD_CERT_ROLE;
+import static com.ledger.appletrecoverykey.Constants.CARD_TARGET_ID;
+import static com.ledger.appletrecoverykey.Constants.CERTIFICATE_TRUSTED_NAME_TAG;
+import static com.ledger.appletrecoverykey.Constants.DATA_CARD_NAME_TAG;
+import static com.ledger.appletrecoverykey.Constants.DATA_PIN_TRY_COUNTER_TAG;
+import static com.ledger.appletrecoverykey.Constants.GET_STATUS_APPLET_FSM_STATE_TAG;
+import static com.ledger.appletrecoverykey.Constants.GET_STATUS_APPLET_VERSION_TAG;
+import static com.ledger.appletrecoverykey.Constants.GET_STATUS_SERIAL_NUMBER_TAG;
+import static com.ledger.appletrecoverykey.Constants.GET_STATUS_TARGET_ID_TAG;
+import static com.ledger.appletrecoverykey.Constants.GET_STATUS_TRANSIENT_FSM_STATE_TAG;
+import static com.ledger.appletrecoverykey.Constants.HW_CERT_ROLE;
+import static com.ledger.appletrecoverykey.Constants.HW_EPH_CERT_ROLE;
+import static com.ledger.appletrecoverykey.Constants.HW_SN_LENGTH;
+import static com.ledger.appletrecoverykey.Constants.INS_FACTORY_RESET;
+import static com.ledger.appletrecoverykey.Constants.INS_GET_CARD_CERTIFICATE;
+import static com.ledger.appletrecoverykey.Constants.INS_GET_DATA;
+import static com.ledger.appletrecoverykey.Constants.INS_GET_PUBLIC_KEY;
+import static com.ledger.appletrecoverykey.Constants.INS_GET_STATUS;
+import static com.ledger.appletrecoverykey.Constants.INS_PIN_CHANGE;
+import static com.ledger.appletrecoverykey.Constants.INS_REQUEST_UPGRADE;
+import static com.ledger.appletrecoverykey.Constants.INS_RESTORE_SEED;
+import static com.ledger.appletrecoverykey.Constants.INS_SET_CERTIFICATE;
+import static com.ledger.appletrecoverykey.Constants.INS_SET_DATA;
+import static com.ledger.appletrecoverykey.Constants.INS_SET_PIN;
+import static com.ledger.appletrecoverykey.Constants.INS_SET_SEED;
+import static com.ledger.appletrecoverykey.Constants.INS_SET_STATUS;
+import static com.ledger.appletrecoverykey.Constants.INS_VALIDATE_HOST_CERTIFICATE;
+import static com.ledger.appletrecoverykey.Constants.INS_VERIFY_PIN;
+import static com.ledger.appletrecoverykey.Constants.INS_VERIFY_SEED;
+import static com.ledger.appletrecoverykey.Constants.MAX_CARD_NAME_LENGTH;
+import static com.ledger.appletrecoverykey.Constants.P1_GET_EPHEMERAL_CERTIFICATE;
+import static com.ledger.appletrecoverykey.Constants.P1_GET_STATIC_CERTIFICATE;
+import static com.ledger.appletrecoverykey.Constants.P1_VALIDATE_EPHEMERAL_CERTIFICATE;
+import static com.ledger.appletrecoverykey.Constants.P1_VALIDATE_STATIC_CERTIFICATE;
+import static com.ledger.appletrecoverykey.Constants.SN_LENGTH;
+import static com.ledger.appletrecoverykey.Constants.SW_AUTHENTICATION_BLOCKED;
+import static com.ledger.appletrecoverykey.Constants.SW_FATAL_ERROR_DURING_INIT;
+import static com.ledger.appletrecoverykey.Constants.SW_INCORRECT_PARAMETERS;
+import static com.ledger.appletrecoverykey.Constants.SW_INCORRECT_SCP_LEDGER;
+import static com.ledger.appletrecoverykey.Constants.SW_MISSING_SCP_LEDGER;
+import static com.ledger.appletrecoverykey.Constants.SW_PIN_COUNTER_CHANGED;
+import static com.ledger.appletrecoverykey.Constants.SW_REFERENCE_DATA_NOT_FOUND;
+import static com.ledger.appletrecoverykey.Constants.SW_SECURITY_STATUS;
+import static com.ledger.appletrecoverykey.Constants.SW_WRONG_LENGTH;
+import static com.ledger.appletrecoverykey.Constants.SW_WRONG_P1P2;
+import static com.ledger.appletrecoverykey.Constants.UPGRADE_AUTHORIZATION_DENIED;
+import static com.ledger.appletrecoverykey.Constants.UPGRADE_AUTHORIZATION_GRANTED;
+import static com.ledger.appletrecoverykey.Utils.buildTLVField;
+import static com.ledger.appletrecoverykey.Utils.parseTLVGetOffset;
+import static com.ledger.appletrecoverykey.Version.APPLET_MAJOR_VERSION;
+import static com.ledger.appletrecoverykey.Version.APPLET_MINOR_VERSION;
+import static com.ledger.appletrecoverykey.Version.APPLET_PATCH_VERSION;
 
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;
 import javacard.framework.Util;
 
 public class CommandProcessor {
-    private final AppletCharon app;
+    private final AppletRecoveryKey app;
     private final byte[] ramBuffer;
     private final short[] stateBuffer;
     private FatalError fatalError;
 
-    public CommandProcessor(AppletCharon applet, byte[] ramBuffer, short[] stateBuffer) {
+    public CommandProcessor(AppletRecoveryKey applet, byte[] ramBuffer, short[] stateBuffer) {
         this.app = applet;
         this.ramBuffer = ramBuffer;
         this.stateBuffer = stateBuffer;
@@ -97,7 +97,7 @@ public class CommandProcessor {
         offset = buildTLVField(buffer, offset, new byte[] { GET_STATUS_APPLET_VERSION_TAG },
                 new byte[] { APPLET_MAJOR_VERSION, APPLET_MINOR_VERSION, APPLET_PATCH_VERSION });
         offset = buildTLVField(buffer, offset, new byte[] { GET_STATUS_APPLET_FSM_STATE_TAG },
-                new byte[] { app.appletFSM.getCurrentStateForGetStatus() });
+                new byte[] { app.lifeCycleFSM.getCurrentStateForGetStatus() });
         offset = buildTLVField(buffer, offset, new byte[] { GET_STATUS_TRANSIENT_FSM_STATE_TAG },
                 new byte[] { app.transientFSM.getCurrentStateForGetStatus() });
         return offset;
@@ -124,7 +124,7 @@ public class CommandProcessor {
      */
     private short getPublicKey(byte[] buffer) {
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_FABRICATION || stateBuffer[1] != TransientStateMachine.STATE_IDLE) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_FABRICATION || stateBuffer[1] != TransientStateMachine.STATE_IDLE) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         if (buffer[ISO7816.OFFSET_P1] != 0 || buffer[ISO7816.OFFSET_P2] != 0) {
@@ -182,7 +182,7 @@ public class CommandProcessor {
      */
     private short setCertificate(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_FABRICATION || stateBuffer[1] != TransientStateMachine.STATE_IDLE) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_FABRICATION || stateBuffer[1] != TransientStateMachine.STATE_IDLE) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P1 and P2 are 0
@@ -210,7 +210,7 @@ public class CommandProcessor {
             ISOException.throwIt(SW_SECURITY_STATUS);
         }
         // Set FSM state
-        app.appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
+        app.lifeCycleFSM.transition(LifeCycleStateMachine.EVENT_SET_CERTIFICATE);
         return 0;
     }
 
@@ -250,8 +250,8 @@ public class CommandProcessor {
      */
     private short getCardCertificate(byte[] buffer) {
         // Check FSM states
-        if ((stateBuffer[0] != AppletStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_INITIALIZED)
-                && (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED
+        if ((stateBuffer[0] != LifeCycleStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_INITIALIZED)
+                && (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED
                         || stateBuffer[1] != TransientStateMachine.STATE_PIN_LOCKED)) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
@@ -306,8 +306,8 @@ public class CommandProcessor {
      */
     private short validateHostCertificate(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if ((stateBuffer[0] != AppletStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_INITIALIZED)
-                && (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED
+        if ((stateBuffer[0] != LifeCycleStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_INITIALIZED)
+                && (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED
                         || stateBuffer[1] != TransientStateMachine.STATE_PIN_LOCKED)) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
@@ -439,7 +439,7 @@ public class CommandProcessor {
 
     private short setPIN(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P1 and P2 are 0
@@ -471,7 +471,7 @@ public class CommandProcessor {
         boolean pinVerified = false;
         byte triesRemaining = 0;
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P1 and P2 are 0
@@ -502,7 +502,7 @@ public class CommandProcessor {
                 // Reset PIN, Seed and FSM
                 app.seedManager.clearSeed();
                 app.pinManager.resetPIN();
-                app.appletFSM.transition(AppletStateMachine.EVENT_PIN_TRY_LIMIT_EXCEEDED);
+                app.lifeCycleFSM.transition(LifeCycleStateMachine.EVENT_PIN_TRY_LIMIT_EXCEEDED);
                 app.transientFSM.transition(TransientStateMachine.EVENT_PIN_TRY_LIMIT_EXCEEDED);
                 ISOException.throwIt(SW_AUTHENTICATION_BLOCKED);
             } else {
@@ -521,7 +521,7 @@ public class CommandProcessor {
 
     private short changePIN(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P1 and P2 are 0
@@ -549,7 +549,7 @@ public class CommandProcessor {
 
     private short setSeed(byte[] buffer) {
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_ATTESTED || stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check PIN is set (meaning PIN value has been put in transient memory)
@@ -563,13 +563,13 @@ public class CommandProcessor {
         // Activate PIN
         app.pinManager.activatePIN();
         // Set FSM state
-        app.appletFSM.transition(AppletStateMachine.EVENT_SET_SEED);
+        app.lifeCycleFSM.transition(LifeCycleStateMachine.EVENT_SET_SEED);
         app.transientFSM.transition(TransientStateMachine.EVENT_PIN_VERIFIED);
         return 0;
     }
 
     private short restoreSeed(byte[] buffer, short dataLength) {
-        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check data length
@@ -591,7 +591,7 @@ public class CommandProcessor {
     }
 
     private short verifySeed(byte[] buffer, short cdatalength) {
-        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         if (cdatalength == 0 || buffer[ISO7816.OFFSET_LC] == 0) {
@@ -613,7 +613,7 @@ public class CommandProcessor {
 
     private short factoryReset(byte[] buffer, short dataLength) {
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check data length
@@ -636,14 +636,14 @@ public class CommandProcessor {
         // Reset PIN
         app.pinManager.resetPIN();
         // Reset FSM states
-        app.appletFSM.transition(AppletStateMachine.EVENT_FACTORY_RESET);
+        app.lifeCycleFSM.transition(LifeCycleStateMachine.EVENT_FACTORY_RESET);
         app.transientFSM.transition(TransientStateMachine.EVENT_FACTORY_RESET);
         return 0;
     }
 
     private short getData(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] < TransientStateMachine.STATE_AUTHENTICATED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] < TransientStateMachine.STATE_AUTHENTICATED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check data length
@@ -683,7 +683,7 @@ public class CommandProcessor {
 
     private short setData(byte[] buffer, short cdatalength) {
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED || stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check data length
@@ -719,7 +719,7 @@ public class CommandProcessor {
     }
 
     private short setStatus(byte[] buffer) {
-        if (stateBuffer[0] != AppletStateMachine.STATE_PENDING_TESTS || stateBuffer[1] != TransientStateMachine.STATE_IDLE) {
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_PENDING_TESTS || stateBuffer[1] != TransientStateMachine.STATE_IDLE) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
         // Check P1 is 0
@@ -733,8 +733,8 @@ public class CommandProcessor {
         }
 
         // Check P2 == STATE_ATTESTED
-        if (buffer[ISO7816.OFFSET_P2] == AppletStateMachine.GET_STATUS_STATE_ATTESTED) {
-            app.appletFSM.transition(AppletStateMachine.EVENT_FACTORY_TESTS_PASSED);
+        if (buffer[ISO7816.OFFSET_P2] == LifeCycleStateMachine.GET_STATUS_STATE_ATTESTED) {
+            app.lifeCycleFSM.transition(LifeCycleStateMachine.EVENT_FACTORY_TESTS_PASSED);
             app.transientFSM.transition(TransientStateMachine.EVENT_SET_CERTIFICATE_AND_TESTS_PASSED);
         } else {
             ISOException.throwIt(SW_WRONG_P1P2);
@@ -746,7 +746,7 @@ public class CommandProcessor {
     private short requestUpgrade(byte[] buffer, short cdatalength) {
         boolean pinVerified = false;
         // Check FSM states
-        if (stateBuffer[0] != AppletStateMachine.STATE_USER_PERSONALIZED || (stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED
+        if (stateBuffer[0] != LifeCycleStateMachine.STATE_USER_PERSONALIZED || (stateBuffer[1] != TransientStateMachine.STATE_AUTHENTICATED
                 && stateBuffer[1] != TransientStateMachine.STATE_PIN_UNLOCKED)) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }

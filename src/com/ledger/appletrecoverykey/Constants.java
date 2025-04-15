@@ -1,4 +1,4 @@
-package com.ledger.appletcharon;
+package com.ledger.appletrecoverykey;
 
 public final class Constants {
     // Hardware wallet info constants

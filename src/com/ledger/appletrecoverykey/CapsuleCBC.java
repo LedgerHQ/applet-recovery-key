@@ -1,6 +1,6 @@
-package com.ledger.appletcharon;
+package com.ledger.appletrecoverykey;
 
-import static com.ledger.appletcharon.Constants.SW_INCORRECT_SCP_LEDGER;
+import static com.ledger.appletrecoverykey.Constants.SW_INCORRECT_SCP_LEDGER;
 
 import javacard.framework.ISO7816;
 import javacard.framework.ISOException;

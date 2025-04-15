@@ -3,7 +3,7 @@ import os
 import pytest
 from ledgerblue.ecWrapper import PrivateKey
 from ledger_pluto.client import (
-    CharonClient,
+    RecoveryKeyClient,
     CapsuleAlgorithm,
 )
 from ledger_pluto.command_sender import GPCommandSender
@@ -31,7 +31,7 @@ def setup_applet():
     sender = GPCommandSender(backend, ENC_KEY, MAC_KEY)
     sender.send_select(AID)
     sender.open_secure_channel()
-    client = CharonClient(sender, capsule_algo=CapsuleAlgorithm.AES_CBC_HMAC)
+    client = RecoveryKeyClient(sender, capsule_algo=CapsuleAlgorithm.AES_CBC_HMAC)
     # Set certificate to enter Attested mode and authenticate
     client.set_issuer_key(AID, bytearray.fromhex(TEST_ISSUER_PRIV_KEY))
     client.get_public_key_and_verify()

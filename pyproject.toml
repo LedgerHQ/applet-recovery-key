@@ -2,7 +2,7 @@
 name = "tests"
 version = "0.1.0"
 requires-python = "==3.11.*"
-description = "Python functional tests for the Charon smartcard applet"
+description = "Python functional tests for the Ledger Recovery Key smartcard applet"
 authors = [
     {name = "Alexis Grojean", email = "alexis.grojean@ledger.fr"},
 ]

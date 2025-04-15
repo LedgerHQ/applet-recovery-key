@@ -3,45 +3,45 @@
  * 
  */
 
-package com.ledger.appletcharon;
+package com.ledger.appletrecoverykey;
 
-import static com.ledger.appletcharon.Constants.APDU_HEADER_SIZE;
-import static com.ledger.appletcharon.Constants.CARD_CERT_ROLE;
-import static com.ledger.appletcharon.Constants.DGI_TAG_KEY_CRT;
-import static com.ledger.appletcharon.Constants.DGI_TAG_PRIVATE_KEY_VALUE;
-import static com.ledger.appletcharon.Constants.DGI_TAG_PUBLIC_KEY_VALUE;
-import static com.ledger.appletcharon.Constants.GET_STATUS_SERIAL_NUMBER_TAG;
-import static com.ledger.appletcharon.Constants.GP_CLA_EXTERNAL_AUTHENTICATE;
-import static com.ledger.appletcharon.Constants.GP_CLA_INITIALIZE_UPDATE;
-import static com.ledger.appletcharon.Constants.GP_INS_EXTERNAL_AUTHENTICATE;
-import static com.ledger.appletcharon.Constants.GP_INS_INITIALIZE_UPDATE;
-import static com.ledger.appletcharon.Constants.HW_SN_LENGTH;
-import static com.ledger.appletcharon.Constants.INS_GET_STATUS;
-import static com.ledger.appletcharon.Constants.KEY_TYPE_PRIVATE_ECC;
-import static com.ledger.appletcharon.Constants.KEY_TYPE_PUBLIC_ECC;
-import static com.ledger.appletcharon.Constants.KEY_USAGE_SIGNATURE;
-import static com.ledger.appletcharon.Constants.KEY_USAGE_VERIFICATION;
-import static com.ledger.appletcharon.Constants.KEY_VERSION_01;
-import static com.ledger.appletcharon.Constants.KEY_VERSION_11;
-import static com.ledger.appletcharon.Constants.LEDGER_COMMAND_CLA;
-import static com.ledger.appletcharon.Constants.MAX_CARD_NAME_LENGTH;
-import static com.ledger.appletcharon.Constants.MAX_HW_PUBLIC_KEY_LENGTH;
-import static com.ledger.appletcharon.Constants.RAM_BUFFER_SIZE;
-import static com.ledger.appletcharon.Constants.SECURITY_LEVEL_MASK;
-import static com.ledger.appletcharon.Constants.SN_LENGTH;
-import static com.ledger.appletcharon.Constants.SW_FATAL_ERROR;
-import static com.ledger.appletcharon.Constants.SW_INCORRECT_PARAMETERS;
-import static com.ledger.appletcharon.Constants.SW_INCORRECT_SCP03;
-import static com.ledger.appletcharon.Constants.SW_REFERENCE_DATA_NOT_FOUND;
-import static com.ledger.appletcharon.Constants.SW_WRONG_LENGTH;
-import static com.ledger.appletcharon.Constants.TAG_KEY_ID;
-import static com.ledger.appletcharon.Constants.TAG_KEY_LENGTH;
-import static com.ledger.appletcharon.Constants.TAG_KEY_PARAM_LENGTH;
-import static com.ledger.appletcharon.Constants.TAG_KEY_TYPE;
-import static com.ledger.appletcharon.Constants.TAG_KEY_USAGE;
-import static com.ledger.appletcharon.Constants.TAG_KEY_VERSION;
-import static com.ledger.appletcharon.Constants.UPGRADE_AUTHORIZATION_DENIED;
-import static com.ledger.appletcharon.Constants.UPGRADE_AUTHORIZATION_GRANTED;
+import static com.ledger.appletrecoverykey.Constants.APDU_HEADER_SIZE;
+import static com.ledger.appletrecoverykey.Constants.CARD_CERT_ROLE;
+import static com.ledger.appletrecoverykey.Constants.DGI_TAG_KEY_CRT;
+import static com.ledger.appletrecoverykey.Constants.DGI_TAG_PRIVATE_KEY_VALUE;
+import static com.ledger.appletrecoverykey.Constants.DGI_TAG_PUBLIC_KEY_VALUE;
+import static com.ledger.appletrecoverykey.Constants.GET_STATUS_SERIAL_NUMBER_TAG;
+import static com.ledger.appletrecoverykey.Constants.GP_CLA_EXTERNAL_AUTHENTICATE;
+import static com.ledger.appletrecoverykey.Constants.GP_CLA_INITIALIZE_UPDATE;
+import static com.ledger.appletrecoverykey.Constants.GP_INS_EXTERNAL_AUTHENTICATE;
+import static com.ledger.appletrecoverykey.Constants.GP_INS_INITIALIZE_UPDATE;
+import static com.ledger.appletrecoverykey.Constants.HW_SN_LENGTH;
+import static com.ledger.appletrecoverykey.Constants.INS_GET_STATUS;
+import static com.ledger.appletrecoverykey.Constants.KEY_TYPE_PRIVATE_ECC;
+import static com.ledger.appletrecoverykey.Constants.KEY_TYPE_PUBLIC_ECC;
+import static com.ledger.appletrecoverykey.Constants.KEY_USAGE_SIGNATURE;
+import static com.ledger.appletrecoverykey.Constants.KEY_USAGE_VERIFICATION;
+import static com.ledger.appletrecoverykey.Constants.KEY_VERSION_01;
+import static com.ledger.appletrecoverykey.Constants.KEY_VERSION_11;
+import static com.ledger.appletrecoverykey.Constants.LEDGER_COMMAND_CLA;
+import static com.ledger.appletrecoverykey.Constants.MAX_CARD_NAME_LENGTH;
+import static com.ledger.appletrecoverykey.Constants.MAX_HW_PUBLIC_KEY_LENGTH;
+import static com.ledger.appletrecoverykey.Constants.RAM_BUFFER_SIZE;
+import static com.ledger.appletrecoverykey.Constants.SECURITY_LEVEL_MASK;
+import static com.ledger.appletrecoverykey.Constants.SN_LENGTH;
+import static com.ledger.appletrecoverykey.Constants.SW_FATAL_ERROR;
+import static com.ledger.appletrecoverykey.Constants.SW_INCORRECT_PARAMETERS;
+import static com.ledger.appletrecoverykey.Constants.SW_INCORRECT_SCP03;
+import static com.ledger.appletrecoverykey.Constants.SW_REFERENCE_DATA_NOT_FOUND;
+import static com.ledger.appletrecoverykey.Constants.SW_WRONG_LENGTH;
+import static com.ledger.appletrecoverykey.Constants.TAG_KEY_ID;
+import static com.ledger.appletrecoverykey.Constants.TAG_KEY_LENGTH;
+import static com.ledger.appletrecoverykey.Constants.TAG_KEY_PARAM_LENGTH;
+import static com.ledger.appletrecoverykey.Constants.TAG_KEY_TYPE;
+import static com.ledger.appletrecoverykey.Constants.TAG_KEY_USAGE;
+import static com.ledger.appletrecoverykey.Constants.TAG_KEY_VERSION;
+import static com.ledger.appletrecoverykey.Constants.UPGRADE_AUTHORIZATION_DENIED;
+import static com.ledger.appletrecoverykey.Constants.UPGRADE_AUTHORIZATION_GRANTED;
 
 import org.globalplatform.Application;
 import org.globalplatform.GPSystem;
@@ -66,7 +66,7 @@ import javacard.security.KeyBuilder;
  * @author <user>
  */
 
-public class AppletCharon extends Applet implements OnUpgradeListener, Application {
+public class AppletRecoveryKey extends Applet implements OnUpgradeListener, Application {
     // Hardware wallet info
     protected byte[] hwSerialNumber;
 
@@ -103,7 +103,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     protected EphemeralCertificate ephemeralCertificate;
 
     // State machines (life cycle and transient)
-    protected AppletStateMachine appletFSM;
+    protected LifeCycleStateMachine lifeCycleFSM;
     protected TransientStateMachine transientFSM;
 
     // RAM buffer
@@ -121,7 +121,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     public Element onSave() {
         // If the Lifecycle FSM state is "user personalized" (PIN and seed set) but the
         // upgrade authorization is not granted then the applet cannot be upgraded
-        if (appletFSM.getCurrentState() == AppletStateMachine.STATE_USER_PERSONALIZED
+        if (lifeCycleFSM.getCurrentState() == LifeCycleStateMachine.STATE_USER_PERSONALIZED
                 && upgradeAuthorizationState[0] != UPGRADE_AUTHORIZATION_GRANTED) {
             ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
             return null;
@@ -170,11 +170,11 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         seedManager.setCryptoUtil(crypto);
 
         if (cardCertificatePKI.isCertificateSet()) {
-            appletFSM.transition(AppletStateMachine.EVENT_SET_CERTIFICATE);
-            appletFSM.transition(AppletStateMachine.EVENT_FACTORY_TESTS_PASSED);
+            lifeCycleFSM.transition(LifeCycleStateMachine.EVENT_SET_CERTIFICATE);
+            lifeCycleFSM.transition(LifeCycleStateMachine.EVENT_FACTORY_TESTS_PASSED);
         }
         if (seedManager.isSeedSet() && pinManager.getPINStatus() == PINManager.PIN_STATUS_ACTIVATED) {
-            appletFSM.transition(AppletStateMachine.EVENT_SET_SEED);
+            lifeCycleFSM.transition(LifeCycleStateMachine.EVENT_SET_SEED);
         }
         transientFSM.setOnSelectState();
         this.enableFatalErrorHandling();
@@ -216,16 +216,16 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
      * @param bLength the length in bytes of the parameter data in bArray
      */
     public static void install(byte[] bArray, short bOffset, byte bLength) {
-        new AppletCharon(bArray, bOffset, bLength);
+        new AppletRecoveryKey(bArray, bOffset, bLength);
     }
 
     /**
      * Only this class's install method should create the applet object.
      */
-    protected AppletCharon(byte[] bArray, short bOffset, byte bLength) {
+    protected AppletRecoveryKey(byte[] bArray, short bOffset, byte bLength) {
         // Create the FSM
-        appletFSM = new AppletStateMachine();
-        transientFSM = new TransientStateMachine(appletFSM);
+        lifeCycleFSM = new LifeCycleStateMachine();
+        transientFSM = new TransientStateMachine(lifeCycleFSM);
         secureChannel = null;
         pinManager = new PINManager();
         crypto = new CryptoUtil();
@@ -263,7 +263,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
     private void enableFatalErrorHandling() {
         pinManager.setFatalError(fatalError);
         seedManager.setFatalError(fatalError);
-        appletFSM.setFatalError(fatalError);
+        lifeCycleFSM.setFatalError(fatalError);
         transientFSM.setFatalError(fatalError);
         commandProcessor.setFatalError(fatalError);
         fatalError.setInitDone();
@@ -283,7 +283,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
             // Ignore all other exceptions
         } finally {
             // Reset FSM states (lifecycle : attested, transient : initialized)
-            appletFSM.setStateOnFatalError();
+            lifeCycleFSM.setStateOnFatalError();
             transientFSM.setStateOnFatalError();
             ISOException.throwIt(SW_FATAL_ERROR);
         }
@@ -348,11 +348,11 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         short dgi;
 
         // Get current persistent and transient states
-        short pState = appletFSM.getCurrentState();
+        short pState = lifeCycleFSM.getCurrentState();
         short tState = transientFSM.getCurrentState();
 
         // Check FSM states
-        if (pState != AppletStateMachine.STATE_FABRICATION || tState != TransientStateMachine.STATE_IDLE) {
+        if (pState != LifeCycleStateMachine.STATE_FABRICATION || tState != TransientStateMachine.STATE_IDLE) {
             ISOException.throwIt(ISO7816.SW_CONDITIONS_NOT_SATISFIED);
         }
 
@@ -555,7 +555,7 @@ public class AppletCharon extends Applet implements OnUpgradeListener, Applicati
         }
 
         // Get current persistent state
-        stateBuffer[0] = appletFSM.getCurrentState();
+        stateBuffer[0] = lifeCycleFSM.getCurrentState();
         stateBuffer[1] = transientFSM.getCurrentState();
 
         cdatalength = commandProcessor.processCommand(buffer, cdatalength);

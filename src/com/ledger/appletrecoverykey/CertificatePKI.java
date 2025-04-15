@@ -1,18 +1,19 @@
-package com.ledger.appletcharon;
+package com.ledger.appletrecoverykey;
+
+import static com.ledger.appletrecoverykey.Constants.APDU_HEADER_SIZE;
+import static com.ledger.appletrecoverykey.Constants.CERTIFICATE_SIGNATURE_TAG;
+import static com.ledger.appletrecoverykey.Constants.SW_SECURITY_STATUS;
+import static com.ledger.appletrecoverykey.Constants.SW_WRONG_LENGTH;
+import static com.ledger.appletrecoverykey.Utils.parseTLVGetOffset;
 
 import org.globalplatform.upgrade.Element;
 import org.globalplatform.upgrade.UpgradeManager;
+
+import javacard.framework.ISOException;
+import javacard.framework.Util;
 import javacard.security.ECPublicKey;
 import javacard.security.KeyBuilder;
 import javacard.security.Signature;
-import javacard.framework.ISOException;
-import javacard.framework.Util;
-import static com.ledger.appletcharon.Constants.APDU_HEADER_SIZE;
-import static com.ledger.appletcharon.Constants.CERTIFICATE_PUBLIC_KEY_TAG;
-import static com.ledger.appletcharon.Constants.CERTIFICATE_SIGNATURE_TAG;
-import static com.ledger.appletcharon.Constants.SW_SECURITY_STATUS;
-import static com.ledger.appletcharon.Constants.SW_WRONG_LENGTH;
-import static com.ledger.appletcharon.Utils.parseTLVGetOffset;
 
 public class CertificatePKI {
     // Certificate length
@@ -36,9 +37,10 @@ public class CertificatePKI {
 
     /**
      * Writes the certificate value into non-volatile memory.
-     * @param[in] certificate        Certificate buffer
-     * @param[in] offset             Offset of the certificate value
-     * @param[in] certificateLength  Length of the certificate
+     * 
+     * @param[in] certificate Certificate buffer
+     * @param[in] offset Offset of the certificate value
+     * @param[in] certificateLength Length of the certificate
      */
     protected void setCertificate(byte[] certificate, short offset, short certificateLength) {
         if (certificateLength > MAX_CERT_LEN) {
@@ -51,8 +53,9 @@ public class CertificatePKI {
 
     /**
      * Initializes the Issuer public key used to verify the certificate signature
-     * @param[in] publicKey       Public key buffer
-     * @param[in] offset          Offset of the public key value
+     * 
+     * @param[in] publicKey Public key buffer
+     * @param[in] offset Offset of the public key value
      * @param[in] publicKeyLength Public key length
      */
     protected void setIssuerPublicKey(byte[] publicKey, short offset, short publicKeyLength) {
@@ -64,8 +67,9 @@ public class CertificatePKI {
 
     /**
      * Gets the certificate
+     * 
      * @param[out] outCertificate Buffer to return the certificate
-     * @param[in]  offset         Offset for the certificate value
+     * @param[in] offset Offset for the certificate value
      * @return Certificate length
      */
     protected short getCertificate(byte[] outCertificate, short offset) {
@@ -75,8 +79,9 @@ public class CertificatePKI {
 
     /**
      * Gets the Issuer public key
+     * 
      * @param[out] outPublicKey Buffer to return the public key
-     * @param[in]  offset       Offset for the public key value
+     * @param[in] offset Offset for the public key value
      * @return Public key length
      */
     protected short getIssuerPublicKey(byte[] outPublicKey, short offset) {
@@ -85,14 +90,15 @@ public class CertificatePKI {
 
     /**
      * Verifies the Issuer signature against the certificate data
+     * 
      * @param[in] certificate Certificate buffer
-     * @param[in] offset      Offset of the certificate value
-     * @param[in] length      Length of the certificate buffer
-     * @return True if the signature is verified
-     * False otherwise
+     * @param[in] offset Offset of the certificate value
+     * @param[in] length Length of the certificate buffer
+     * @return True if the signature is verified False otherwise
      */
     protected boolean verifySignature(byte[] certificate, short offset, short length) {
-        // parse certificate to get the signature length and the signature value (tag = 0x15)
+        // parse certificate to get the signature length and the signature value (tag =
+        // 0x15)
         short signatureOffset = parseTLVGetOffset(CERTIFICATE_SIGNATURE_TAG, certificate, offset, length);
         short signatureLength = (short) (certificate[signatureOffset] & 0xFF);
         signatureOffset++;
@@ -100,7 +106,8 @@ public class CertificatePKI {
         this.signature.init(this.issuerPublicKey, Signature.MODE_VERIFY);
 
         short certificateLength = (short) (length - APDU_HEADER_SIZE);
-        boolean isVerified = this.signature.verify(certificate, offset, (short) (certificateLength - signatureLength - 2), certificate, signatureOffset, signatureLength);
+        boolean isVerified = this.signature.verify(certificate, offset, (short) (certificateLength - signatureLength - 2), certificate,
+                signatureOffset, signatureLength);
 
         if (!isVerified) {
             ISOException.throwIt(SW_SECURITY_STATUS);
@@ -112,8 +119,8 @@ public class CertificatePKI {
 
     /**
      * Verifies whether a certificate is set
-     * @return True if a certificate has been set
-     * False otherwise
+     * 
+     * @return True if a certificate has been set False otherwise
      */
     protected boolean isCertificateSet() {
         return (this.rawCertificateLength != 0);
@@ -121,6 +128,7 @@ public class CertificatePKI {
 
     /**
      * Saves Certificate instance during upgrade
+     * 
      * @param[in] certificate Certificate instance to save
      * @return Upgrade Element
      */
@@ -136,6 +144,7 @@ public class CertificatePKI {
 
     /**
      * Restores an upgrade Element into a Certificate instance
+     * 
      * @param[in] element Upgrade Element to restore
      * @return Certificate instance
      */

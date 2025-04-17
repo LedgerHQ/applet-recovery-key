@@ -192,6 +192,10 @@ public class AppletRecoveryKey extends Applet implements OnUpgradeListener, Appl
         // Clear PIN if personalization was not completed in the previous session
         // (PIN was set but not the seed)
         pinManager.unsetPIN();
+        // Verify consistency between the pin status and the seed status
+        if (seedManager.isSeedSet() && pinManager.getPINStatus() != PINManager.PIN_STATUS_ACTIVATED) {
+            fatalError.throwIt();
+        }
         return true;
     }
 

@@ -18,13 +18,13 @@ public class PINManager {
     private static final byte PIN_DATA_LENGTH_OFFSET = 0;
     private static final byte PIN_DATA_OFFSET = 1;
 
-    protected static final byte PIN_STATUS_NOT_SET = 0;
-    protected static final byte PIN_STATUS_SET = 1;
-    protected static final byte PIN_STATUS_ACTIVATED = 2;
-    protected static final byte PIN_STATUS_INVALID = 3;
+    protected static final short PIN_STATUS_NOT_SET = 0x6562;
+    protected static final short PIN_STATUS_SET = 0x41C5;
+    protected static final short PIN_STATUS_ACTIVATED = 0x7BBA;
+    protected static final short PIN_STATUS_INVALID = 0x6F87;
 
     private OwnerPIN pin;
-    private byte pinStatus;
+    private short pinStatus;
     private FatalError fatalError;
 
     public PINManager() {
@@ -32,7 +32,7 @@ public class PINManager {
         setPinStatus(PIN_STATUS_NOT_SET);
     }
 
-    private boolean isValidState(byte state) {
+    private boolean isValidState(short state) {
         switch (state) {
         case PIN_STATUS_NOT_SET:
         case PIN_STATUS_SET:
@@ -44,7 +44,7 @@ public class PINManager {
         }
     }
 
-    private void setPinStatus(byte status) {
+    private void setPinStatus(short status) {
         JCSystem.beginTransaction();
         try {
             if (!isValidState(status)) {
@@ -147,7 +147,7 @@ public class PINManager {
         pin.update(buffer, (short) PIN_DATA_OFFSET, pinLength);
     }
 
-    public byte getPINStatus() {
+    public short getPINStatus() {
         if (!isValidState(pinStatus)) {
             throwFatalError();
         }
@@ -158,7 +158,7 @@ public class PINManager {
         if (pinManager == null || pinManager.getPINStatus() != PIN_STATUS_ACTIVATED) {
             return null;
         }
-        return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 1, (short) 1).write(pinManager.pinStatus).write(pinManager.pin);
+        return UpgradeManager.createElement(Element.TYPE_SIMPLE, (short) 2, (short) 1).write(pinManager.pinStatus).write(pinManager.pin);
     }
 
     static PINManager restore(Element element) {
@@ -166,7 +166,7 @@ public class PINManager {
             return null;
         }
         PINManager pinManager = new PINManager();
-        pinManager.pinStatus = element.readByte();
+        pinManager.pinStatus = element.readShort();
         pinManager.pin = (OwnerPIN) element.readObject();
         return pinManager;
     }

@@ -31,7 +31,7 @@ DEPS_PATH=$HOME
 # Update paths based on DEPS_PATH
 update_vars() {
     OPENSSL_PATH="$DEPS_PATH/openssl"
-    GP_API_PATH="$DEPS_PATH/GlobalPlatform_Card_API-org.globalplatform-v1.7.1"
+    GP_API_PATH="./deps"
     UPGRADE_API_PATH="./deps"
     JCDK_PATH="$DEPS_PATH/java_card_devkit"
     JCSIM_PATH="$DEPS_PATH/jcop_simulator"
@@ -126,24 +126,8 @@ check_dependencies() {
         red "Error: JavaCard API Classic jar not found in $JCAPI_PATH"
         red "Please ensure JavaCard DevKit is properly installed in $JCDK_PATH"
         exit 1
-    fi
-
-    # Check if GP API is already present
-    if [ ! -d $GP_API_PATH ]; then
-        yellow "Downloading GP API..."
-        if ! curl -L -o /tmp/gp-api.zip $GP_API_URL; then
-            red "Error: Failed to download GP API"
-            exit 1
-        fi
-        
-        if ! unzip /tmp/gp-api.zip -d $DEPS_PATH; then
-            red "Error: Failed to extract GP API"
-            rm /tmp/gp-api.zip
-            exit 1
-        fi
-        rm /tmp/gp-api.zip
     else
-        yellow "GP API already present, skipping download..."
+        green "JavaCard API Classic jar found in $JCAPI_PATH ✅"
     fi
 
     green "All dependencies checked successfully"
@@ -213,7 +197,7 @@ generate_cap() {
     yellow "Compiling Java sources..."
     if ! $JAVA_HOME/bin/javac -source 7 -target 7 -g \
         -cp $JCAPI_PATH \
-        -cp "$JCAPI_PATH:$JCAPI_ANNOTATIONS_PATH:$GP_API_PATH/1.5/gpapi-globalplatform.jar:$UPGRADE_API_PATH/gpapi-upgrade.jar" \
+        -cp "$JCAPI_PATH:$JCAPI_ANNOTATIONS_PATH:$GP_API_PATH/gpapi-globalplatform.jar:$UPGRADE_API_PATH/gpapi-upgrade.jar" \
         -d bin src/com/ledger/appletrecoverykey/*.java; then
         red "Error: Java compilation failed"
         exit 1
@@ -227,8 +211,8 @@ generate_cap() {
     yellow "Running CAP converter..."
     if ! $JCDK_PATH/bin/converter.sh -i \
         -classdir ./bin \
-        -exportpath $GP_API_PATH/1.5/exports:$UPGRADE_API_PATH/exports \
         -applet $FORMATTED_AID com.ledger.appletrecoverykey.AppletRecoveryKey \
+        -exportpath $UPGRADE_API_PATH/exports23 \
         -out CAP JCA EXP \
         -d $OUTPUT_DIR \
         -debug \

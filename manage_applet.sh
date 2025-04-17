@@ -13,8 +13,9 @@ show_help() {
     echo "Usage: $0 [options]"
     echo "Options:"
     echo "  -d, --docker                   Run commands in docker container"
-    echo "  -a, --aid AID                  Set AID for the applet when generating CAP file (default: A000000002)"
-    echo "  -v, --version VERSION          Set applet version when generating CAP file (default: 1.0)"
+    echo "  -a, --applet-aid AID           Override applet instance AID when generating CAP file (default: A00000001100)"
+    echo "  -k, --package-aid AID          Override package AID when generating CAP file (default: A000000011AA)" 
+    echo "  -v, --version VERSION          Override applet version when generating CAP file (otherwise read from src/com/ledger/appletrecoverykey/Version.java)"
     echo "  -c, --clean                    Clean build artifacts"
     echo "  -p, --path                     Set dependencies path (for local generation only)"
     echo "  -t, --tests GH_USER GH_TOKEN   Run functional tests (requires GitHub credentials if in docker with -d, --docker)" 
@@ -37,8 +38,8 @@ update_vars() {
     JCSIM_PATH="$DEPS_PATH/jcop_simulator"
     JCAPI_PATH="$JCDK_PATH/lib/api_classic-3.0.5.jar"
     JCAPI_ANNOTATIONS_PATH=$JCDK_PATH"/lib/api_classic_annotations-3.0.5.jar"
-    AID="A000000002"
-    VERSION="1.0"
+    APPLET_AID="A0000000624C45444745523031" # == module AID
+    PACKAGE_AID="A0000000624C4544474552303100"
     GP_API_URL="https://globalplatform.org/wp-content/themes/globalplatform/ajax/file-download.php?f=https://globalplatform.org/wp-content/uploads/2019/07/GlobalPlatform_Card_API-org.globalplatform-v1.7.1.zip"
     JAVA_HOME="/usr/java/jdk-17-oracle-x64"
     OUTPUT_DIR="./deliverables/applet-recovery-key"
@@ -158,7 +159,7 @@ setup_docker_and_generate_cap() {
     fi
     
     yellow "Generate cap in container..."
-    run_in_docker "$(declare -f check_dependencies) && $(declare -f generate_cap) && generate_cap true $USER_AID $USER_VERSION $USER_OUTPUT_DIR" "Build in container failed"
+    run_in_docker "$(declare -f check_dependencies) && $(declare -f generate_cap) && generate_cap true $USER_APPLET_AID $USER_PACKAGE_AID $USER_VERSION $USER_OUTPUT_DIR" "Build in container failed"
 }
 
 # Format from AABBCCDD to 0xAA:0xBB:0xCC:0xDD with sed
@@ -168,26 +169,28 @@ format_aid_string() {
 
 # Function to build the CAP file with parameter to check if inside docker container
 generate_cap() {
-    local inside_docker=$1
-    local user_aid=$2
-    local user_version=$3
-    local user_output_dir=$4
-    if [ "$inside_docker" = true ]; then
+    # Make sure we have proper number of arguments
+    if [ "$#" -ne 5 ]; then
+        red "Error: Function generate_cap requires 5 arguments but got $#"
+        red "Usage: generate_cap <inside_docker> <applet_aid> <package_aid> <version> <output_dir>"
+        exit 1
+    fi
+
+    local INSIDE_DOCKER=$1
+    local APPLET_AID=$2
+    local PACKAGE_AID=$3
+    local VERSION=$4
+    local OUTPUT_DIR=$5
+
+    if [ "$INSIDE_DOCKER" = true ]; then
         DEPS_PATH=$HOME
         update_vars
     fi
 
-    if [ -n "$user_aid" ]; then
-        AID=$user_aid
-    fi
-
-    if [ -n "$user_version" ]; then
-        VERSION=$user_version
-    fi
-
-    if [ -n "$user_output_dir" ]; then
-        OUTPUT_DIR=$user_output_dir
-    fi
+    green "Using applet (module) AID: $APPLET_AID"
+    green "Using package AID: $PACKAGE_AID"
+    green "Using version: $VERSION"
+    green "Using output directory: $OUTPUT_DIR"
 
     check_dependencies
 
@@ -206,18 +209,19 @@ generate_cap() {
     yellow "Creating deliverables directory if it doesn't exist..."
     mkdir -p $OUTPUT_DIR
 
-    FORMATTED_AID=$(format_aid_string $AID)
+    FORMATTED_APPLET_AID=$(format_aid_string $APPLET_AID)
+    FORMATTED_PACKAGE_AID=$(format_aid_string $PACKAGE_AID)
 
     yellow "Running CAP converter..."
     if ! $JCDK_PATH/bin/converter.sh -i \
         -classdir ./bin \
-        -applet $FORMATTED_AID com.ledger.appletrecoverykey.AppletRecoveryKey \
         -exportpath $UPGRADE_API_PATH/exports23 \
+        -applet $FORMATTED_APPLET_AID com.ledger.appletrecoverykey.AppletRecoveryKey \
         -out CAP JCA EXP \
         -d $OUTPUT_DIR \
         -debug \
         -target 3.0.5 \
-        com.ledger.appletrecoverykey $FORMATTED_AID:0x00 $VERSION; then
+        com.ledger.appletrecoverykey $FORMATTED_PACKAGE_AID $VERSION; then
         red "Error: CAP conversion failed"
         exit 1
     fi
@@ -337,12 +341,21 @@ while [[ $# -gt 0 ]]; do
                 shift 1
             fi
             ;;
-        -a|--aid)
+        -a|--applet-aid)
             if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
-                USER_AID=$2
+                USER_APPLET_AID=$2
                 shift 2
             else
-                red "Error: -a|--aid requires a valid AID argument."
+                red "Error: -a|--applet-aid requires a valid AID argument."
+                exit 1
+            fi
+            ;;
+        -k|--package-aid)
+            if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+                USER_PACKAGE_AID=$2
+                shift 2
+            else
+                red "Error: -k|--package-aid requires a valid AID argument."
                 exit 1
             fi
             ;;
@@ -384,8 +397,20 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [ ! -n "$USER_AID" ]; then
-    USER_AID=$AID
+if [ ! -n "$USER_APPLET_AID" ]; then
+    USER_APPLET_AID=$APPLET_AID
+fi
+
+if [ ! -n "$USER_PACKAGE_AID" ]; then
+    USER_PACKAGE_AID=$PACKAGE_AID
+fi
+
+if [ ! -n "$USER_OUTPUT_DIR" ]; then
+    USER_OUTPUT_DIR=$OUTPUT_DIR
+fi
+
+if [ ! -n "$USER_VERSION" ]; then
+    get_version # Sets USER_VERSION
 fi
 
 # Execute requested operations
@@ -399,6 +424,6 @@ else
     if [ "$TESTS" = true ]; then
         run_tests false
     else
-        generate_cap false $USER_AID $USER_VERSION $USER_OUTPUT_DIR
+        generate_cap false $USER_APPLET_AID $USER_PACKAGE_AID $USER_VERSION $USER_OUTPUT_DIR
     fi
 fi

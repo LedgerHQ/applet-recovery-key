@@ -311,6 +311,13 @@ run_tests()
         pdm install -G local
     fi
 
+    # Check for NXP JCOP simulator
+    if [ ! -d $JCSIM_PATH ]; then
+        red "Error: NXP JCOP Simulator not found in $JCSIM_PATH"
+        red "Please ensure NXP JCOP Simulator is properly installed in $JCSIM_PATH"
+        exit 1
+    fi
+
     # Run the NXP JCOP simulator
     if ! pgrep -x "jcop" > /dev/null; then
         yellow "Starting NXP JCOP simulator..."

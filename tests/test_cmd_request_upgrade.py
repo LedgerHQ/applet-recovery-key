@@ -67,12 +67,17 @@ def configure_applet():
 @pytest.mark.test_spec("CHA_APP_RU_OK_01")
 @pytest.mark.commands("request_upgrade")
 @pytest.mark.order("last")
-def test_cmd_request_upgrade(loader, client):
+def test_cmd_request_upgrade(sender, loader, client):
     authenticate(client)
     pin_digits = bytes([0x01, 0x02, 0x03, 0x04])
     client.request_upgrade(pin_digits)
-    check_applet_state(client)
     loader.upgrade_applet(CAP_FILE_UPGRADE)
+    # Check applet state to ensure saving and restoring of state
+    # is working correctly during the upgrade
+    sender.send_select(AID)
+    sender.open_secure_channel()
+    authenticate(client)
+    check_applet_state(client)
 
 
 @pytest.mark.description(

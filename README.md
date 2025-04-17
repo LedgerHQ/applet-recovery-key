@@ -11,8 +11,8 @@ Instructions for Debian like linux distributions.
 1. Clone this repo and change directory.
 
     ```bash
-    git clone git@github.com:LedgerHQ/applet-charon.git
-    cd applet-charon
+    git clone git@github.com:LedgerHQ/applet-recovery-key.git
+    cd applet-recovery-key
     ```
 
 2. Login to Ledger Orange docker registry.

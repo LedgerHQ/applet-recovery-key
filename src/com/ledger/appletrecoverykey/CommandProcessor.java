@@ -772,6 +772,9 @@ public class CommandProcessor {
         pinVerified = app.pinManager.verifyPIN(ramBuffer);
         if (pinVerified) {
             app.upgradeAuthorizationState[0] = UPGRADE_AUTHORIZATION_GRANTED;
+            if (!app.pinManager.verifyPIN(ramBuffer)) {
+                throwFatalError();
+            }
         } else {
             app.upgradeAuthorizationState[0] = UPGRADE_AUTHORIZATION_DENIED;
             ISOException.throwIt(ISO7816.SW_WRONG_DATA);

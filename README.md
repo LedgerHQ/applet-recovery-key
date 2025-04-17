@@ -8,14 +8,27 @@ Javacard applet of the Ledger Recovery Key smart card. Allows to perform a secur
 
 Instructions for Debian like linux distributions.
 
-1. Clone this repo and change directory.
+* Clone this repo and change directory.
 
     ```bash
     git clone git@github.com:LedgerHQ/applet-recovery-key.git
     cd applet-recovery-key
     ```
 
-2. Login to Ledger Orange docker registry.
+#### Building locally
+
+* Execute the CAP generation script. It will use AIDs defined in the script (actual production AIDs) and parse the version from `src/com/ledger/appletrecoverykey/Version.java`
+
+    ```bash
+    ./manage_applet.sh
+    ```
+
+> [!NOTE]
+> During execution, the script may ask you to enter your user password to install the JDK 17 if it is missing.
+
+#### Dockerized build
+
+* Login to Ledger Orange docker registry.
 
     :information_source: You will need a valid registry token to authenticate, go to your [Orange Github](https://git.orange.ledgerlabs.net/) account, then `Settings > Developer settings > Personal access tokens > Tokens (classic)`, use the `Generate new token` button and choose the following scope `read:packages`
 
@@ -23,7 +36,7 @@ Instructions for Debian like linux distributions.
     docker login containers.git.orange.ledgerlabs.net -u <user name>
     ```
 
-3. Execute the CAP generation script (it will pull the [applet-builder Docker image](https://git.orange.ledgerlabs.net/embedded-software/applet-builder))
+* Execute the CAP generation script (it will pull the [applet-builder Docker image](https://git.orange.ledgerlabs.net/embedded-software/applet-builder))
 
     ```bash
     ./manage_applet.sh -d
@@ -61,45 +74,73 @@ Run the script with one or more options to specify the desired operations:
 
 #### Options
 
-| Option                           | Description                                                                                          |
-|----------------------------------|------------------------------------------------------------------------------------------------------|
-| `-d`, `--docker`                 | Run the commands inside a Docker container.                                                          |
-| `-a`, `--aid AID`                | Set a custom AID for the applet. Default is \`A000000002\`.                                          |
-| `-c`, `--clean`                  | Clean up build artifacts (bin and deliverables directories).                                         |
-| `-p`, `--path PATH`              | Specify the dependencies path for local generation.                                                  |
-| `-t`, `--tests GH_USER GH_TOKEN` | Run functional tests (GitHub credentials required in Docker mode).                                   |
-| `-h`, `--help`                   | Display this help message.                                                                           |
+| Option                           | Description                                                                                      |
+|----------------------------------|--------------------------------------------------------------------------------------------------|
+| `-d`, `--docker`                 | Run commands in a Docker container                                                               |
+| `-a`, `--applet-aid AID`         | Override applet instance AID when generating CAP file (default: A0000000624C45444745523031)      |
+| `-k`, `--package-aid AID`        | Override package AID when generating CAP file (default: A0000000624C4544474552303100)           |
+| `-v`, `--version VERSION`        | Override applet version when generating CAP file (otherwise read from Version.java)              |
+| `-c`, `--clean`                  | Clean build artifacts                                                                            |
+| `-p`, `--path`                   | Set dependencies path (for local generation only)                                                |
+| `-t`, `--tests GH_USER GH_TOKEN` | Run functional tests (requires GitHub credentials if in Docker with -d)                          |
+| `-o`, `--output-dir DIR`         | Set output directory for generated CAP file (default: ./deliverables/applet-recovery-key)        |
+| `-n`, `--no-deps`                | Do not automatically download missing dependencies                                               |
+| `-h`, `--help`                   | Show help message                                                                                |
 
-> **Note**: Running the script without options will generate the CAP file locally.
+> **Note**: Running the script without options will generate the CAP file locally with default AID and version.
 
 ### Examples
 
-- **Generate the CAP file locally**:
+- **Generate the CAP file locally with default settings**:
 
-    ```bash
-    ./manage_applet.sh
-    ```
+  ```bash
+  ./manage_applet.sh
+  ```
 
-- **Generate the CAP file with a custom AID**:
+- **Generate the CAP file with custom AIDs**:
 
-    ```bash
-    ./manage_applet.sh -a A000000003
-    ```
+  ```bash
+  ./manage_applet.sh -a A0000000624C45444745523032 -k A0000000624C4544474552303200
+  ```
+
+- **Generate the CAP file with a specific version**:
+
+  ```bash
+  ./manage_applet.sh -v 1.2
+  ```
 
 - **Generate the CAP file using Docker**:
 
-    ```bash
-    ./manage_applet.sh -d
-    ```
+  ```bash
+  ./manage_applet.sh -d
+  ```
 
 - **Run functional tests in Docker** (requires GitHub credentials):
 
-    ```bash
-    ./manage_applet.sh -d -t YOUR_GITHUB_USERNAME YOUR_GITHUB_TOKEN
-    ```
+  ```bash
+  ./manage_applet.sh -d -t YOUR_GITHUB_USERNAME YOUR_GITHUB_TOKEN
+  ```
+
+- **Run functional tests locally**:
+
+  ```bash
+  ./manage_applet.sh -t
+  ```
+
+- **Generate CAP file with custom output directory**:
+
+  ```bash
+  ./manage_applet.sh -o ./my-output-dir
+  ```
 
 - **Clean build artifacts**:
 
-    ```bash
-    ./manage_applet.sh -c
-    ```
+  ```bash
+  ./manage_applet.sh -c
+  ```
+
+- **Generate CAP file with specified dependencies path**:
+
+  ```bash
+  ./manage_applet.sh -p /path/to/deps
+  ```

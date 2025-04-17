@@ -20,6 +20,7 @@ show_help() {
     echo "  -p, --path                     Set dependencies path (for local generation only)"
     echo "  -t, --tests GH_USER GH_TOKEN   Run functional tests (requires GitHub credentials if in docker with -d, --docker)" 
     echo "  -o, --output-dir DIR           Set output directory for generated CAP file (default: ./deliverables/applet-recovery-key)"
+    echo "  -n, --no-deps                  Do not automatically download missing dependencies"
     echo "  -h, --help                     Show this help message"
     echo ""
     echo "Without any options, the script will generate the CAP file locally with default AID and version."
@@ -28,10 +29,10 @@ show_help() {
 
 # Initialize DEPS_PATH with default value
 DEPS_PATH=$HOME
+NO_DEPS=false
 
 # Update paths based on DEPS_PATH
 update_vars() {
-    OPENSSL_PATH="$DEPS_PATH/openssl"
     GP_API_PATH="./deps"
     UPGRADE_API_PATH="./deps"
     JCDK_PATH="$DEPS_PATH/java_card_devkit"
@@ -96,30 +97,46 @@ check_dependencies() {
     
     # Check for JDK 17
     if [ ! -d $JAVA_HOME ]; then
-        red "Error: JDK 17 not found in $JAVA_HOME"
-        red "Please ensure JDK 17 is properly installed in $JAVA_HOME"
-        exit 1
+        if [ $NO_DEPS = true ]; then
+            red "Error: JDK 17 not found in $JAVA_HOME"
+            red "Please ensure JDK 17 is properly installed in $JAVA_HOME"
+            exit 1
+        fi
+        yellow "Downloading JDK 17..."
+        if ! curl -L -o /tmp/jdk-17_linux-x64_bin.deb https://download.oracle.com/java/17/archive/jdk-17.0.12_linux-x64_bin.deb; then
+            red "Error: Failed to download JDK 17"
+            exit 1
+        fi
+        if ! sudo apt-get install --reinstall -y /tmp/jdk-17_linux-x64_bin.deb; then
+            red "Error: Failed to install JDK 17"
+            rm /tmp/jdk-17_linux-x64_bin.deb
+            exit 1
+        fi
+        rm /tmp/jdk-17_linux-x64_bin.deb
+    else
+        green "JDK 17 found in $JAVA_HOME ✅"
     fi
 
     # Check for JavaCard DevKit
     if [ ! -d $JCDK_PATH ]; then
-        red "Error: JavaCard DevKit not found in $JCDK_PATH"
-        red "Please ensure JavaCard DevKit is properly installed in $JCDK_PATH"
-        exit 1
-    fi
-
-    # Check for openssl
-    if [ ! -d $OPENSSL_PATH ]; then
-        red "Error: OpenSSL not found in $OPENSSL_PATH"
-        red "Please ensure OpenSSL is properly installed in $OPENSSL_PATH"
-        exit 1
-    fi
-
-    # Check for NXP JCOP simulator
-    if [ ! -d $JCSIM_PATH ]; then
-        red "Error: NXP JCOP Simulator not found in $JCSIM_PATH"
-        red "Please ensure NXP JCOP Simulator is properly installed in $JCSIM_PATH"
-        exit 1
+        if [ $NO_DEPS = true ]; then
+            red "Error: JavaCard DevKit not found in $JCDK_PATH"
+            red "Please ensure JavaCard DevKit is properly installed in $JCDK_PATH"
+            exit 1
+        fi
+        yellow "Downloading JavaCard DevKit..."
+        if ! curl -L -b oraclelicense=accept-securebackup-cookie -o /tmp/java_card_devkit.zip https://download.oracle.com/otn-pub/java/java_card_kit/3.2/java_card_devkit_tools-bin-v24.0-b_57-20-FEB-2024.zip; then
+            red "Error: Failed to download JavaCard DevKit"
+            exit 1
+        fi
+        if ! unzip /tmp/java_card_devkit.zip -d $DEPS_PATH; then
+            red "Error: Failed to extract JavaCard DevKit"
+            rm /tmp/java_card_devkit.zip
+            exit 1
+        fi
+        rm /tmp/java_card_devkit.zip
+    else
+        green "JavaCard DevKit found in $JCDK_PATH ✅"
     fi
 
     # Check for specific required files
@@ -131,7 +148,7 @@ check_dependencies() {
         green "JavaCard API Classic jar found in $JCAPI_PATH ✅"
     fi
 
-    green "All dependencies checked successfully"
+    green "All dependencies checked successfully ✅"
 }
 
 # Function to handle docker operations
@@ -278,9 +295,6 @@ run_tests()
         fi
     fi
     
-    export LD_LIBRARY_PATH=$OPENSSL_PATH
-    export OPENSSL_MODULES=/usr/local/ssl/lib
-    
     check_dependencies
 
     # Install PDM
@@ -388,6 +402,10 @@ while [[ $# -gt 0 ]]; do
                 red "Error: -o|--output-dir requires a valid directory argument."
                 exit 1
             fi
+            ;;
+        -n|--no-deps)
+            NO_DEPS=true
+            shift
             ;;
         -h|--help)
             show_help

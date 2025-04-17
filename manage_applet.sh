@@ -199,6 +199,8 @@ generate_cap() {
 
     yellow "Compiling Java sources..."
     if ! $JAVA_HOME/bin/javac -source 7 -target 7 -g \
+        -bootclasspath $JCAPI_PATH \
+        -Xlint:-options \
         -cp $JCAPI_PATH \
         -cp "$JCAPI_PATH:$JCAPI_ANNOTATIONS_PATH:$GP_API_PATH/gpapi-globalplatform.jar:$UPGRADE_API_PATH/gpapi-upgrade.jar" \
         -d bin src/com/ledger/appletrecoverykey/*.java; then

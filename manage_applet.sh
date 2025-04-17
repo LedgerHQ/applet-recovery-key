@@ -184,6 +184,32 @@ format_aid_string() {
     echo "$1" | sed 's/../0x&:/g' | sed 's/:$//'
 }
 
+# Get version from src/com/ledger/appletrecoverykey/Version.java
+get_version() {
+    local version_file="src/com/ledger/appletrecoverykey/Version.java"
+    if [ -f "$version_file" ]; then
+        if ! MAJOR_VERSION=$(grep -oP 'protected static final byte APPLET_MAJOR_VERSION = \(byte\) 0x\K[^;]+' "$version_file"); then
+            red "Error: Failed to extract major version from $version_file"
+            exit 1
+        fi
+        if ! MINOR_VERSION=$(grep -oP 'protected static final byte APPLET_MINOR_VERSION = \(byte\) 0x\K[^;]+' "$version_file"); then
+            red "Error: Failed to extract minor version from $version_file"
+            exit 1
+        fi
+        # Convert to decimal
+        MAJOR_VERSION=$((16#$MAJOR_VERSION))
+        MINOR_VERSION=$((16#$MINOR_VERSION))
+        # Format version as x.y
+        VERSION="$MAJOR_VERSION.$MINOR_VERSION"
+        # Print version
+        green "Found version $VERSION in $version_file"
+        USER_VERSION=$VERSION
+    else
+        red "Error: Version file not found at $version_file"
+        exit 1
+    fi
+}
+
 # Function to build the CAP file with parameter to check if inside docker container
 generate_cap() {
     # Make sure we have proper number of arguments

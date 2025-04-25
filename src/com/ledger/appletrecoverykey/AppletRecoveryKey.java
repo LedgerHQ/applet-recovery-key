@@ -274,23 +274,18 @@ public class AppletRecoveryKey extends Applet implements OnUpgradeListener, Appl
     }
 
     public void throwFatalError() {
-        try {
-            // Reset card name length
-            cardNameLength = 0;
-            // Reset seed
-            seedManager.clearSeedOnFatalError();
-            // Reset PIN
-            pinManager.resetPINOnFatalError();
-            // Reset secure channel
-            secureChannel = null;
-        } catch (Exception e) {
-            // Ignore all other exceptions
-        } finally {
-            // Reset FSM states (lifecycle : attested, transient : initialized)
-            lifeCycleFSM.setStateOnFatalError();
-            transientFSM.setStateOnFatalError();
-            ISOException.throwIt(SW_FATAL_ERROR);
-        }
+        // Reset card name length
+        cardNameLength = 0;
+        // Reset seed
+        seedManager.clearSeedOnFatalError();
+        // Reset PIN
+        pinManager.resetPINOnFatalError();
+        // Reset secure channel
+        secureChannel = null;
+        // Reset FSM states (lifecycle : attested, transient : initialized)
+        lifeCycleFSM.setStateOnFatalError();
+        transientFSM.setStateOnFatalError();
+        ISOException.throwIt(SW_FATAL_ERROR);
     }
 
     /**

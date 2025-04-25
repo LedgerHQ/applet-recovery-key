@@ -13,12 +13,14 @@ show_help() {
     echo "Usage: $0 [options]"
     echo "Options:"
     echo "  -d, --docker                   Run commands in docker container"
-    echo "  -a, --aid AID                  Set AID for the applet when generating CAP file (default: A000000002)"
-    echo "  -v, --version VERSION          Set applet version when generating CAP file (default: 1.0)"
+    echo "  -a, --applet-aid AID           Override applet instance AID when generating CAP file (default: A00000001100)"
+    echo "  -k, --package-aid AID          Override package AID when generating CAP file (default: A000000011AA)" 
+    echo "  -v, --version VERSION          Override applet version when generating CAP file (otherwise read from src/com/ledger/appletrecoverykey/Version.java)"
     echo "  -c, --clean                    Clean build artifacts"
     echo "  -p, --path                     Set dependencies path (for local generation only)"
     echo "  -t, --tests GH_USER GH_TOKEN   Run functional tests (requires GitHub credentials if in docker with -d, --docker)" 
     echo "  -o, --output-dir DIR           Set output directory for generated CAP file (default: ./deliverables/applet-recovery-key)"
+    echo "  -n, --no-deps                  Do not automatically download missing dependencies"
     echo "  -h, --help                     Show this help message"
     echo ""
     echo "Without any options, the script will generate the CAP file locally with default AID and version."
@@ -27,18 +29,18 @@ show_help() {
 
 # Initialize DEPS_PATH with default value
 DEPS_PATH=$HOME
+NO_DEPS=false
 
 # Update paths based on DEPS_PATH
 update_vars() {
-    OPENSSL_PATH="$DEPS_PATH/openssl"
-    GP_API_PATH="$DEPS_PATH/GlobalPlatform_Card_API-org.globalplatform-v1.7.1"
+    GP_API_PATH="./deps"
     UPGRADE_API_PATH="./deps"
     JCDK_PATH="$DEPS_PATH/java_card_devkit"
     JCSIM_PATH="$DEPS_PATH/jcop_simulator"
     JCAPI_PATH="$JCDK_PATH/lib/api_classic-3.0.5.jar"
     JCAPI_ANNOTATIONS_PATH=$JCDK_PATH"/lib/api_classic_annotations-3.0.5.jar"
-    AID="A000000002"
-    VERSION="1.0"
+    APPLET_AID="A0000000624C45444745523031" # == module AID
+    PACKAGE_AID="A0000000624C4544474552303100"
     GP_API_URL="https://globalplatform.org/wp-content/themes/globalplatform/ajax/file-download.php?f=https://globalplatform.org/wp-content/uploads/2019/07/GlobalPlatform_Card_API-org.globalplatform-v1.7.1.zip"
     JAVA_HOME="/usr/java/jdk-17-oracle-x64"
     OUTPUT_DIR="./deliverables/applet-recovery-key"
@@ -95,30 +97,46 @@ check_dependencies() {
     
     # Check for JDK 17
     if [ ! -d $JAVA_HOME ]; then
-        red "Error: JDK 17 not found in $JAVA_HOME"
-        red "Please ensure JDK 17 is properly installed in $JAVA_HOME"
-        exit 1
+        if [ $NO_DEPS = true ]; then
+            red "Error: JDK 17 not found in $JAVA_HOME"
+            red "Please ensure JDK 17 is properly installed in $JAVA_HOME"
+            exit 1
+        fi
+        yellow "Downloading JDK 17..."
+        if ! curl -L -o /tmp/jdk-17_linux-x64_bin.deb https://download.oracle.com/java/17/archive/jdk-17.0.12_linux-x64_bin.deb; then
+            red "Error: Failed to download JDK 17"
+            exit 1
+        fi
+        if ! sudo apt-get install --reinstall -y /tmp/jdk-17_linux-x64_bin.deb; then
+            red "Error: Failed to install JDK 17"
+            rm /tmp/jdk-17_linux-x64_bin.deb
+            exit 1
+        fi
+        rm /tmp/jdk-17_linux-x64_bin.deb
+    else
+        green "JDK 17 found in $JAVA_HOME ✅"
     fi
 
     # Check for JavaCard DevKit
     if [ ! -d $JCDK_PATH ]; then
-        red "Error: JavaCard DevKit not found in $JCDK_PATH"
-        red "Please ensure JavaCard DevKit is properly installed in $JCDK_PATH"
-        exit 1
-    fi
-
-    # Check for openssl
-    if [ ! -d $OPENSSL_PATH ]; then
-        red "Error: OpenSSL not found in $OPENSSL_PATH"
-        red "Please ensure OpenSSL is properly installed in $OPENSSL_PATH"
-        exit 1
-    fi
-
-    # Check for NXP JCOP simulator
-    if [ ! -d $JCSIM_PATH ]; then
-        red "Error: NXP JCOP Simulator not found in $JCSIM_PATH"
-        red "Please ensure NXP JCOP Simulator is properly installed in $JCSIM_PATH"
-        exit 1
+        if [ $NO_DEPS = true ]; then
+            red "Error: JavaCard DevKit not found in $JCDK_PATH"
+            red "Please ensure JavaCard DevKit is properly installed in $JCDK_PATH"
+            exit 1
+        fi
+        yellow "Downloading JavaCard DevKit..."
+        if ! curl -L -b oraclelicense=accept-securebackup-cookie -o /tmp/java_card_devkit.zip https://download.oracle.com/otn-pub/java/java_card_kit/3.2/java_card_devkit_tools-bin-v24.0-b_57-20-FEB-2024.zip; then
+            red "Error: Failed to download JavaCard DevKit"
+            exit 1
+        fi
+        if ! unzip /tmp/java_card_devkit.zip -d $DEPS_PATH; then
+            red "Error: Failed to extract JavaCard DevKit"
+            rm /tmp/java_card_devkit.zip
+            exit 1
+        fi
+        rm /tmp/java_card_devkit.zip
+    else
+        green "JavaCard DevKit found in $JCDK_PATH ✅"
     fi
 
     # Check for specific required files
@@ -126,27 +144,11 @@ check_dependencies() {
         red "Error: JavaCard API Classic jar not found in $JCAPI_PATH"
         red "Please ensure JavaCard DevKit is properly installed in $JCDK_PATH"
         exit 1
-    fi
-
-    # Check if GP API is already present
-    if [ ! -d $GP_API_PATH ]; then
-        yellow "Downloading GP API..."
-        if ! curl -L -o /tmp/gp-api.zip $GP_API_URL; then
-            red "Error: Failed to download GP API"
-            exit 1
-        fi
-        
-        if ! unzip /tmp/gp-api.zip -d $DEPS_PATH; then
-            red "Error: Failed to extract GP API"
-            rm /tmp/gp-api.zip
-            exit 1
-        fi
-        rm /tmp/gp-api.zip
     else
-        yellow "GP API already present, skipping download..."
+        green "JavaCard API Classic jar found in $JCAPI_PATH ✅"
     fi
 
-    green "All dependencies checked successfully"
+    green "All dependencies checked successfully ✅"
 }
 
 # Function to handle docker operations
@@ -174,7 +176,7 @@ setup_docker_and_generate_cap() {
     fi
     
     yellow "Generate cap in container..."
-    run_in_docker "$(declare -f check_dependencies) && $(declare -f generate_cap) && generate_cap true $USER_AID $USER_VERSION $USER_OUTPUT_DIR" "Build in container failed"
+    run_in_docker "$(declare -f check_dependencies) && $(declare -f generate_cap) && generate_cap true $USER_APPLET_AID $USER_PACKAGE_AID $USER_VERSION $USER_OUTPUT_DIR" "Build in container failed"
 }
 
 # Format from AABBCCDD to 0xAA:0xBB:0xCC:0xDD with sed
@@ -182,28 +184,56 @@ format_aid_string() {
     echo "$1" | sed 's/../0x&:/g' | sed 's/:$//'
 }
 
+# Get version from src/com/ledger/appletrecoverykey/Version.java
+get_version() {
+    local version_file="src/com/ledger/appletrecoverykey/Version.java"
+    if [ -f "$version_file" ]; then
+        if ! MAJOR_VERSION=$(grep -oP 'protected static final byte APPLET_MAJOR_VERSION = \(byte\) 0x\K[^;]+' "$version_file"); then
+            red "Error: Failed to extract major version from $version_file"
+            exit 1
+        fi
+        if ! MINOR_VERSION=$(grep -oP 'protected static final byte APPLET_MINOR_VERSION = \(byte\) 0x\K[^;]+' "$version_file"); then
+            red "Error: Failed to extract minor version from $version_file"
+            exit 1
+        fi
+        # Convert to decimal
+        MAJOR_VERSION=$((16#$MAJOR_VERSION))
+        MINOR_VERSION=$((16#$MINOR_VERSION))
+        # Format version as x.y
+        VERSION="$MAJOR_VERSION.$MINOR_VERSION"
+        # Print version
+        green "Found version $VERSION in $version_file"
+        USER_VERSION=$VERSION
+    else
+        red "Error: Version file not found at $version_file"
+        exit 1
+    fi
+}
+
 # Function to build the CAP file with parameter to check if inside docker container
 generate_cap() {
-    local inside_docker=$1
-    local user_aid=$2
-    local user_version=$3
-    local user_output_dir=$4
-    if [ "$inside_docker" = true ]; then
+    # Make sure we have proper number of arguments
+    if [ "$#" -ne 5 ]; then
+        red "Error: Function generate_cap requires 5 arguments but got $#"
+        red "Usage: generate_cap <inside_docker> <applet_aid> <package_aid> <version> <output_dir>"
+        exit 1
+    fi
+
+    local INSIDE_DOCKER=$1
+    local APPLET_AID=$2
+    local PACKAGE_AID=$3
+    local VERSION=$4
+    local OUTPUT_DIR=$5
+
+    if [ "$INSIDE_DOCKER" = true ]; then
         DEPS_PATH=$HOME
         update_vars
     fi
 
-    if [ -n "$user_aid" ]; then
-        AID=$user_aid
-    fi
-
-    if [ -n "$user_version" ]; then
-        VERSION=$user_version
-    fi
-
-    if [ -n "$user_output_dir" ]; then
-        OUTPUT_DIR=$user_output_dir
-    fi
+    green "Using applet (module) AID: $APPLET_AID"
+    green "Using package AID: $PACKAGE_AID"
+    green "Using version: $VERSION"
+    green "Using output directory: $OUTPUT_DIR"
 
     check_dependencies
 
@@ -212,8 +242,10 @@ generate_cap() {
 
     yellow "Compiling Java sources..."
     if ! $JAVA_HOME/bin/javac -source 7 -target 7 -g \
+        -bootclasspath $JCAPI_PATH \
+        -Xlint:-options \
         -cp $JCAPI_PATH \
-        -cp "$JCAPI_PATH:$JCAPI_ANNOTATIONS_PATH:$GP_API_PATH/1.5/gpapi-globalplatform.jar:$UPGRADE_API_PATH/gpapi-upgrade.jar" \
+        -cp "$JCAPI_PATH:$JCAPI_ANNOTATIONS_PATH:$GP_API_PATH/gpapi-globalplatform.jar:$UPGRADE_API_PATH/gpapi-upgrade.jar" \
         -d bin src/com/ledger/appletrecoverykey/*.java; then
         red "Error: Java compilation failed"
         exit 1
@@ -222,18 +254,19 @@ generate_cap() {
     yellow "Creating deliverables directory if it doesn't exist..."
     mkdir -p $OUTPUT_DIR
 
-    FORMATTED_AID=$(format_aid_string $AID)
+    FORMATTED_APPLET_AID=$(format_aid_string $APPLET_AID)
+    FORMATTED_PACKAGE_AID=$(format_aid_string $PACKAGE_AID)
 
     yellow "Running CAP converter..."
     if ! $JCDK_PATH/bin/converter.sh -i \
         -classdir ./bin \
-        -exportpath $GP_API_PATH/1.5/exports:$UPGRADE_API_PATH/exports \
-        -applet $FORMATTED_AID com.ledger.appletrecoverykey.AppletRecoveryKey \
+        -exportpath $UPGRADE_API_PATH/exports23 \
+        -applet $FORMATTED_APPLET_AID com.ledger.appletrecoverykey.AppletRecoveryKey \
         -out CAP JCA EXP \
         -d $OUTPUT_DIR \
         -debug \
         -target 3.0.5 \
-        com.ledger.appletrecoverykey $FORMATTED_AID:0x00 $VERSION; then
+        com.ledger.appletrecoverykey $FORMATTED_PACKAGE_AID $VERSION; then
         red "Error: CAP conversion failed"
         exit 1
     fi
@@ -288,9 +321,6 @@ run_tests()
         fi
     fi
     
-    export LD_LIBRARY_PATH=$OPENSSL_PATH
-    export OPENSSL_MODULES=/usr/local/ssl/lib
-    
     check_dependencies
 
     # Install PDM
@@ -305,6 +335,13 @@ run_tests()
     else
         pdm lock -G local
         pdm install -G local
+    fi
+
+    # Check for NXP JCOP simulator
+    if [ ! -d $JCSIM_PATH ]; then
+        red "Error: NXP JCOP Simulator not found in $JCSIM_PATH"
+        red "Please ensure NXP JCOP Simulator is properly installed in $JCSIM_PATH"
+        exit 1
     fi
 
     # Run the NXP JCOP simulator
@@ -353,12 +390,21 @@ while [[ $# -gt 0 ]]; do
                 shift 1
             fi
             ;;
-        -a|--aid)
+        -a|--applet-aid)
             if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
-                USER_AID=$2
+                USER_APPLET_AID=$2
                 shift 2
             else
-                red "Error: -a|--aid requires a valid AID argument."
+                red "Error: -a|--applet-aid requires a valid AID argument."
+                exit 1
+            fi
+            ;;
+        -k|--package-aid)
+            if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+                USER_PACKAGE_AID=$2
+                shift 2
+            else
+                red "Error: -k|--package-aid requires a valid AID argument."
                 exit 1
             fi
             ;;
@@ -390,6 +436,10 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        -n|--no-deps)
+            NO_DEPS=true
+            shift
+            ;;
         -h|--help)
             show_help
             ;;
@@ -400,8 +450,20 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [ ! -n "$USER_AID" ]; then
-    USER_AID=$AID
+if [ ! -n "$USER_APPLET_AID" ]; then
+    USER_APPLET_AID=$APPLET_AID
+fi
+
+if [ ! -n "$USER_PACKAGE_AID" ]; then
+    USER_PACKAGE_AID=$PACKAGE_AID
+fi
+
+if [ ! -n "$USER_OUTPUT_DIR" ]; then
+    USER_OUTPUT_DIR=$OUTPUT_DIR
+fi
+
+if [ ! -n "$USER_VERSION" ]; then
+    get_version # Sets USER_VERSION
 fi
 
 # Execute requested operations
@@ -415,6 +477,6 @@ else
     if [ "$TESTS" = true ]; then
         run_tests false
     else
-        generate_cap false $USER_AID $USER_VERSION $USER_OUTPUT_DIR
+        generate_cap false $USER_APPLET_AID $USER_PACKAGE_AID $USER_VERSION $USER_OUTPUT_DIR
     fi
 fi

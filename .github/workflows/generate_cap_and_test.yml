@@ -26,9 +26,8 @@ jobs:
 
       - name: Generate CAP
         run: |
-            export APPLET_AID="A000000002"
-            ./manage_applet.sh -p "/home/devuser" -a $APPLET_AID -v 1.0
-            ./manage_applet.sh -p "/home/devuser" -a $APPLET_AID -v 1.1 -o upgrade
+            ./manage_applet.sh -p "/home/devuser" -v 1.0
+            ./manage_applet.sh -p "/home/devuser" -v 1.1 -o upgrade
     
       - name: Setup PDM
         uses: pdm-project/setup-pdm@v4

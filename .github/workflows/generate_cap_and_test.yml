@@ -15,10 +15,10 @@ jobs:
     name: Generate CAP and run tests
 
     container:
-      image: docker.io/alexisgrojean/applet-builder:latest
+      image: containers.git.orange.ledgerlabs.net/embedded-software/applet-builder:latest
       credentials:
-        username: ${{ secrets.DOCKER_USER }}
-        password: ${{ secrets.DOCKER_TOKEN }}
+        username: ${{ secrets.ORANGE_GITHUB_USER }}
+        password: ${{ secrets.ORANGE_GITHUB_TOKEN }}
 
     steps:
       - name: Checkout code

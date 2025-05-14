@@ -1,3 +1,8 @@
+/**
+ * SPDX-FileCopyrightText: © 2024 Ledger SAS <opensource-os@ledger.fr>
+ * SPDX-License-Identifier: LicenseRef-source-code-accessibility-1.0
+ */
+
 package com.ledger.appletrecoverykey;
 
 public final class Constants {

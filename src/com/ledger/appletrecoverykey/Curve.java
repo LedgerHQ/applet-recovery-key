@@ -1,6 +1,6 @@
-/** 
- * Copyright (c) 1998, 2024, Oracle and/or its affiliates. All rights reserved.
- * 
+/**
+ * SPDX-FileCopyrightText: © 2024 Ledger SAS <opensource-os@ledger.fr>
+ * SPDX-License-Identifier: LicenseRef-source-code-accessibility-1.0
  */
 
 

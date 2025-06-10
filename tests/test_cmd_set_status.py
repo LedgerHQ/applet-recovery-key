@@ -1,5 +1,6 @@
 import logging
 import pytest
+from binascii import unhexlify
 from ledger_pluto.client import CLA, InsType, P1, P2, AppletLifeCycleState
 from ledger_pluto.command_sender import GPCommandSender
 from ledger_pluto.applet_loader import AppletLoader
@@ -33,7 +34,7 @@ def install_applet():
     sender.send_select()
     sender.open_secure_channel(plain=True)
     loader.install_applet(CAP_FILE)
-    loader.store_serial_number(CAP_FILE, serial_number=INSTALL_PARAMS)
+    loader.store_serial_number(unhexlify(AID), serial_number=unhexlify(INSTALL_PARAMS))
     backend.disconnect()
 
 

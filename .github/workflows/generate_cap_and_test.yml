@@ -36,8 +36,8 @@ jobs:
         run: |
             export GH_USER=${{ secrets.GH_USER }}
             export GH_TOKEN=${{ secrets.GH_TOKEN }}
-            pdm lock -G github-actions
-            pdm install -G github-actions
+            pdm lock -v -G github-actions
+            pdm install -v -G github-actions
         shell: bash
       
       - name: Run tests

@@ -56,9 +56,23 @@ The easiest way to run the functional tests is to use the `manage_applet.sh` scr
 
 :warning: Run the `manage_applet.sh` script to generate the cap file before attempting to run the tests. Check the previous section for instructions.
 
-#### Load the applet on a real card
+#### Loading the applet
 
 **TODO** : write this section.
+
+## State machines
+
+The applet uses two finite state machines (FSM) to control its execution flow and what commands are allowed. The so called "Life Cycle" FSM is persistent across power cycles. On the other hand, the "Transient" state machine is reset when the card loses power (or is reset by the reader).
+
+When the Recovery Key card is shipped to the user, the Life Cycle FSM is in the `Attested` state and a transition to `User Personalized` is done when setting the PIN code and a seed backup is performed.
+
+### Life Cycle state machine
+
+![alt text](doc/life_cycle_state_machine.png)
+
+### Transient state machine
+
+![alt text](doc/transient_state_machine.png)
 
 ## `manage_applet.sh` script
 

@@ -20,7 +20,7 @@ DEFAULT_SIM_DEK_KEY = "333333333333333333333333333333333333333333333333333333333
 ENC_KEY = os.environ.get("SIM_ENC_KEY") or DEFAULT_SIM_ENC_KEY
 MAC_KEY = os.environ.get("SIM_MAC_KEY") or DEFAULT_SIM_MAC_KEY
 DEK_KEY = os.environ.get("SIM_DEK_KEY") or DEFAULT_SIM_DEK_KEY
-DEFAULT_AID = "A0000000624C45444745523031"
+DEFAULT_AID = "A0000000624C4544474552303102"
 # Get the applet AID from the environment variable or use the default one
 AID = os.environ.get("APPLET_AID") or DEFAULT_AID
 TEST_ISSUER_PRIV_KEY = (
@@ -228,7 +228,7 @@ def applet():
     sender.send_select()
     sender.open_secure_channel(plain=True)
     loader.install_applet(CAP_FILE)
-    loader.store_serial_number(CAP_FILE, serial_number=INSTALL_PARAMS)
+    loader.store_serial_number(unhexlify(AID), serial_number=unhexlify(INSTALL_PARAMS))
 
 
 @pytest.fixture(scope="function")

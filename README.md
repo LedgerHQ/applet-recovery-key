@@ -2,6 +2,10 @@
 
 Javacard applet of the Ledger Recovery Key smart card. Allows to perform a secure seed backup from wallet to card and restore it later.
 
+## Security audit
+
+A security assessment of the source code was performed by Synacktiv, which found no critical vulnerabilities and revealed a high security level. For a detailed analysis, please refer to the [Synacktiv Security Assessment Report](doc/Synacktiv-Ledger-Security_Assessment_Report_v1.2_public.pdf).
+
 ## How to build and test
 
 ### Building the applet from sources
@@ -15,8 +19,6 @@ Instructions for Debian like linux distributions.
     cd applet-recovery-key
     ```
 
-#### Building locally
-
 * Execute the CAP generation script. It will use AIDs defined in the script (actual production AIDs) and parse the version from `src/com/ledger/appletrecoverykey/Version.java`
 
     ```bash
@@ -25,22 +27,6 @@ Instructions for Debian like linux distributions.
 
 > [!NOTE]
 > During execution, the script may ask you to enter your user password to install the JDK 17 if it is missing.
-
-#### Dockerized build
-
-* Login to Ledger Orange docker registry.
-
-    :information_source: You will need a valid registry token to authenticate, go to your [Orange Github](https://git.orange.ledgerlabs.net/) account, then `Settings > Developer settings > Personal access tokens > Tokens (classic)`, use the `Generate new token` button and choose the following scope `read:packages`
-
-    ```bash
-    docker login containers.git.orange.ledgerlabs.net -u <user name>
-    ```
-
-* Execute the CAP generation script (it will pull the [applet-builder Docker image](https://git.orange.ledgerlabs.net/embedded-software/applet-builder))
-
-    ```bash
-    ./manage_applet.sh -d
-    ```
 
 ### Testing the applet
 
@@ -55,10 +41,6 @@ The easiest way to run the functional tests is to use the `manage_applet.sh` scr
 ```
 
 :warning: Run the `manage_applet.sh` script to generate the cap file before attempting to run the tests. Check the previous section for instructions.
-
-#### Loading the applet
-
-**TODO** : write this section.
 
 ## State machines
 

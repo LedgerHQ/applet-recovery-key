@@ -11,7 +11,7 @@ on:
 
 jobs:
   generate-and-test:
-    runs-on: ledgerhq-shared-small
+    runs-on: public-ledgerhq-shared-small
     name: Generate CAP and run tests
 
     container:

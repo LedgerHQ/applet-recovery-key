@@ -11,14 +11,14 @@ on:
 
 jobs:
   generate-and-test:
-    runs-on: ubuntu-22.04
+    runs-on: public-ledgerhq-shared-small
     name: Generate CAP and run tests
 
     container:
-      image: docker.io/alexisgrojean/applet-builder:latest
+      image: jfrog.ledgerlabs.net/embedded-apps-oci-sandbox-green/ledger-applet-builder:latest
       credentials:
-        username: ${{ secrets.DOCKER_USER }}
-        password: ${{ secrets.DOCKER_TOKEN }}
+        username: ${{ secrets.JFROG_USER }}
+        password: ${{ secrets.JFROG_TOKEN }}
 
     steps:
       - name: Checkout code
